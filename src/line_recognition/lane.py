@@ -40,10 +40,10 @@ class Lane:
     # Four corners of the trapezoid-shaped region of interest
     # You need to find these corners manually.
     self.roi_points = np.float32([
-      (140,260), # Top-left corner
+      (140,300), # Top-left corner
       (0, 340), # Bottom-left corner            
       (640,340), # Bottom-right corner
-      (415,260) # Top-right corner
+      (610,300) # Top-right corner
     ])
          
     # The desired corner locations  of the region of interest
@@ -667,8 +667,8 @@ def main():
   # Save the new image in the working directory
   #cv2.imwrite(new_filename, lane_line_markings)
  
-  # Display the image 
-  cv2.imshow("Image", lane_line_markings) 
+  # Display the image after thresholding
+  #cv2.imshow("Image", lane_line_markings) 
      
   # Display the window until any key is pressed
   cv2.waitKey(0) 
