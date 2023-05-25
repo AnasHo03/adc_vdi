@@ -2,13 +2,17 @@ import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
 import edge_detection as edge # Handles the detection of lane lines
 import matplotlib.pyplot as plt # Used for plotting and error checking
+import os
  
 # Author: Addison Sears-Collins
 # https://automaticaddison.com
 # Description: Implementation of the Lane class 
- 
-filename = 'frame0072.jpg'
- 
+
+# File directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
+filepath = os.path.join(parent_dir, "frame_samples", "frame0072.jpg")
+
 class Lane:
   """
   Represents a lane on a road.
@@ -643,7 +647,7 @@ class Lane:
 def main():
      
   # Load a frame (or image)
-  original_frame = cv2.imread(filename)
+  original_frame = cv2.imread(filepath)
  
   # Create a Lane object
   lane_obj = Lane(orig_frame=original_frame)
@@ -683,12 +687,12 @@ def main():
     frame=frame_with_lane_lines, plot=True)
      
   # Create the output file name by removing the '.jpg' part
-  size = len(filename)
-  new_filename = filename[:size - 4]
-  new_filename = new_filename + '_thresholded.jpg'     
+  size = len(filepath)
+  new_filepath = filepath[:size - 4]
+  new_filepath = new_filepath + '_thresholded.jpg'     
      
   # Save the new image in the working directory
-  #cv2.imwrite(new_filename, lane_line_markings)
+  #cv2.imwrite(new_filepath, lane_line_markings)
  
   # Display the window until any key is pressed
   cv2.waitKey(0) 

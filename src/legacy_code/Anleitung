@@ -1,0 +1,121 @@
+Start procedure:
+
+1. Terminal öffnen
+
+2.-Core ausführen:
+roscore
+
+3. STRG SHIFT t -> neuer Tab
+Ggf.: STRG SHIFT i -> Umbenennen ) 1. Tab heißt core
+
+----------------------------------------------------------------------------------
+Camera Starten
+4.CAM:
+source ~/FS_WS/src/realsense/install/setup.bash --extend
+roslaunch realsense2_camera rs_ML_mono.launch 	
+
+5. RVIZ:
+cd /home/nano/mechatroniklabor_ws
+rosrun rviz rviz -d config.rviz
+----------------------------------------------------------------------------------
+Motor anschmeißen:
+
+-> Auto aufbocken
+-> Kabel von Rädern wegmachen
+-> Schalter R & L einschalten
+-> Keine Werte bei VESC ändern
+
+
+6. VESC:
+source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+
+6.1 Manuell fahren (ohne Sensoren):
+roslaunch mx_car_kit teleop.launch          
+
+6.2 Autonom fahren:
+roslaunch mx_car_kit autonom.launch
+
+6.2.5 Autonom fahren mit Killswitch:
+roslaunch mx_car_kit autonom_w_killswitch.launch 
+
+6.3 Manuell fahren und Sensoren auslesen:
+roslaunch mx_car_kit teleop_sensors.launch
+
+7. SERVO:
+
+-> Fernbedienung anschalten
+
+source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+cd ~/FS_WS_V01/src/servo_ctrl/src/
+python send_servo_ctrl_manual_via_ros.py
+
+8. Abschalten 
+-> STRG C auf allen Tabs
+-> Fernbedienung immer ausschalten
+
+9.
+-Control:
+source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+python autox_easy2.py 
+
+
+
+
+
+10. Skript ausführen
+cd /home/nano/mechatroniklabor_ws/src/control
+source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+python3 control_example.py
+
+
+
+----------------------------------------------------------------------------------------
+Disziplinen Parken
+
+1. Start Parking detection
+
+	1. Terminal öffnen
+
+	2.-Core ausführen:
+
+		roscore
+
+
+	6. VESC:
+
+		source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+
+	6.2.5 Autonom fahren mit Killswitch:
+
+		roslaunch mx_car_kit autonom_w_killswitch.launch 
+
+	7. SERVO:
+
+	-> Fernbedienung anschalten
+
+		source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+		cd ~/FS_WS_V01/src/servo_ctrl/src/
+		python send_servo_ctrl_manual_via_ros.py
+
+
+	9. Skript ausführen 
+		cd /home/nano/mechatroniklabor_ws/src/control
+		source ~/Desktop/Workspace/mxck_ws/devel/setup.bash --extend
+		python3 Parkingcontrol.py
+
+
+----------------------------------------------------------------------------------------
+nützliche commandos:
+	rosrun rqt_graph rqt_graph
+	rosrun rqt_topic rqt_topic
+	rosrun rqt_reconfigure rqt_reconfigure
+	rosrun rosbag record /......	
+	rosrun rosbag play -l .......
+
+
+
+
+
+
+
+
