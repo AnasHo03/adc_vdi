@@ -11,7 +11,7 @@ import os
 # File directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
-filepath = os.path.join(parent_dir, "frame_samples", "frame0072.jpg")
+filepath = os.path.join(parent_dir, "frame_samples", "frame0000.jpg")
 
 class Lane:
   """
@@ -468,7 +468,7 @@ class Lane:
     # along the x and y axis of the video frame.             
     # sxbinary is a matrix full of 0s (black) and 255 (white) intensity values
     # Relatively light pixels get made white. Dark pixels get made black.
-    _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(120, 255))
+    _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(170, 255))
     sxbinary = edge.blur_gaussian(sxbinary, ksize=3) # Reduce noise
 
     # 1s will be in the cells with the highest Sobel derivative values
@@ -508,7 +508,7 @@ class Lane:
                               np.uint8))
     self.lane_line_markings = sxbinary
     if plot==True:
-      #cv2.imshow("Image", self.lane_line_markings)
+      cv2.imshow("Image", self.lane_line_markings)
       return
     return self.lane_line_markings
          
@@ -643,20 +643,39 @@ class Lane:
         break
  
     cv2.destroyAllWindows()
-     
+
+def crop_image_by_half(image):
+  if image is None:
+      print("Failed to load the image.")
+      return None
+
+  # Get the height of the image
+  height = image.shape[0]
+
+  # Calculate the new height (half of the original)
+  new_height = height // 2
+
+  # Crop the image by selecting the upper half
+  cropped_image = image[new_height:, :]
+
+  return cropped_image
+  
 def main():
      
   # Load a frame (or image)
   original_frame = cv2.imread(filepath)
- 
+
+  # Crop image by half
+  #original_frame = crop_image_by_half(original_frame)
+
   # Create a Lane object
   lane_obj = Lane(orig_frame=original_frame)
- 
+
   # Perform thresholding to isolate lane lines
   lane_line_markings = lane_obj.get_line_markings(plot=False)
  
   # Plot the region of interest on the image
-  lane_obj.plot_roi(plot=True)
+  lane_obj.plot_roi(plot=False)
  
   # Perform the perspective transform to generate a bird's eye view
   # If Plot == True, show image with new region of interest
@@ -668,7 +687,7 @@ def main():
      
   # Find lane line pixels using the sliding window method 
   left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-    plot=True, synthesizeRightLane=True)
+    plot=False, synthesizeRightLane=True)
  
   # Fill in the lane line
   lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
