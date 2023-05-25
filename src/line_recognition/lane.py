@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt # Used for plotting and error checking
 # https://automaticaddison.com
 # Description: Implementation of the Lane class 
  
-filename = 'frame0111.jpg'
+filename = 'frame0072.jpg'
  
 class Lane:
   """
@@ -40,10 +40,10 @@ class Lane:
     # Four corners of the trapezoid-shaped region of interest
     # You need to find these corners manually.
     self.roi_points = np.float32([
-      (140,300), # Top-left corner
-      (0, 340), # Bottom-left corner            
-      (640,340), # Bottom-right corner
-      (610,300) # Top-right corner
+      (420,400), # Top-left corner
+      (160, 500), # Bottom-left corner            
+      (1200,500), # Bottom-right corner
+      (1050,400) # Top-right corner
     ])
          
     # The desired corner locations  of the region of interest
@@ -117,7 +117,7 @@ class Lane:
        
     return center_offset
  
-  def calculate_curvature(self, print_to_terminal=False):
+  def calculate_curvature(self, print_to_terminal=False, synthesizeRightLane=True):
     """
     Calculate the road curvature in meters.
  
@@ -131,6 +131,11 @@ class Lane:
     # Fit polynomial curves to the real world environment
     left_fit_cr = np.polyfit(self.lefty * self.YM_PER_PIX, self.leftx * (
       self.XM_PER_PIX), 2)
+    ### ADDED CODE: syntesize right lane from left ###
+    if synthesizeRightLane==True:
+      self.righty = self.lefty
+      self.rightx = self.leftx + 400
+    ### END ADDED CODE ###
     right_fit_cr = np.polyfit(self.righty * self.YM_PER_PIX, self.rightx * (
       self.XM_PER_PIX), 2)
              
@@ -208,7 +213,7 @@ class Lane:
  
     return image_copy
      
-  def get_lane_line_previous_window(self, left_fit, right_fit, plot=False):
+  def get_lane_line_previous_window(self, left_fit, right_fit, plot=False, synthesizeRightLane=True):
     """
     Use the lane line from the previous sliding window to get the parameters
     for the polynomial line for filling in the lane line
@@ -247,7 +252,12 @@ class Lane:
     self.rightx = rightx
     self.lefty = lefty
     self.righty = righty        
-     
+    ### ADDED CODE: syntesize right lane from left ###
+    if synthesizeRightLane == True:
+      righty = lefty
+      rightx = leftx + 400
+    ### END ADDED CODE ###
+
     # Fit a second order polynomial curve to each lane line
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
@@ -307,7 +317,7 @@ class Lane:
       ax3.set_title("Warped Frame With Search Window")
       plt.show()
              
-  def get_lane_line_indices_sliding_windows(self, plot=False):
+  def get_lane_line_indices_sliding_windows(self, plot=False, synthesizeRightLane=True):
     """
     Get the indices of the lane line pixels using the 
     sliding windows technique.
@@ -384,11 +394,17 @@ class Lane:
     lefty = nonzeroy[left_lane_inds] 
     rightx = nonzerox[right_lane_inds] 
     righty = nonzeroy[right_lane_inds]
- 
+  
     # Fit a second order polynomial curve to the pixel coordinates for
-    # the left and right lane lines
+    # the left and right lane lines    
+    ### ADDED CODE: syntesize right lane from left ###
+    if(synthesizeRightLane == synthesizeRightLane):
+      righty = lefty
+      rightx = leftx + 400
+    ### END ADDED CODE ###
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2) 
+
          
     self.left_fit = left_fit
     self.right_fit = right_fit
@@ -427,7 +443,7 @@ class Lane:
              
     return self.left_fit, self.right_fit
  
-  def get_line_markings(self, frame=None):
+  def get_line_markings(self, frame=None, plot=True):
     """
     Isolates lane lines.
    
@@ -450,11 +466,11 @@ class Lane:
     # Relatively light pixels get made white. Dark pixels get made black.
     _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(120, 255))
     sxbinary = edge.blur_gaussian(sxbinary, ksize=3) # Reduce noise
-         
+
     # 1s will be in the cells with the highest Sobel derivative values
     # (i.e. strongest lane line edges)
-    sxbinary = edge.mag_thresh(sxbinary, sobel_kernel=3, thresh=(110, 255))
- 
+    #sxbinary = edge.mag_thresh(sxbinary, sobel_kernel=3, thresh=(110, 255))
+
     ######################## Isolate possible lane lines ######################
    
     # Perform binary thresholding on the S (saturation) channel 
@@ -466,26 +482,30 @@ class Lane:
     # this value for best results).
     s_channel = hls[:, :, 2] # use only the saturation channel data
     _, s_binary = edge.threshold(s_channel, (80, 255))
-     
+
     # Perform binary thresholding on the R (red) channel of the 
-        # original BGR video frame. 
+    # original BGR video frame. 
     # r_thresh is a matrix full of 0s (black) and 255 (white) intensity values
     # White in the regions with the richest red channel values (e.g. >120).
     # Remember, pure white is bgr(255, 255, 255).
     # Pure yellow is bgr(0, 255, 255). Both have high red channel values.
     _, r_thresh = edge.threshold(frame[:, :, 2], thresh=(120, 255))
- 
+
     # Lane lines should be pure in color and have high red channel values 
     # Bitwise AND operation to reduce noise and black-out any pixels that
     # don't appear to be nice, pure, solid colors (like white or yellow lane 
     # lines.)       
     rs_binary = cv2.bitwise_and(s_binary, r_thresh)
- 
+
     ### Combine the possible lane lines with the possible lane line edges ##### 
     # If you show rs_binary visually, you'll see that it is not that different 
     # from this return value. The edges of lane lines are thin lines of pixels.
     self.lane_line_markings = cv2.bitwise_or(rs_binary, sxbinary.astype(
-                              np.uint8))    
+                              np.uint8))
+    self.lane_line_markings = sxbinary
+    if plot==True:
+      #cv2.imshow("Image", self.lane_line_markings)
+      return
     return self.lane_line_markings
          
   def histogram_peak(self):
@@ -572,7 +592,10 @@ class Lane:
     (thresh, binary_warped) = cv2.threshold(
       self.warped_frame, 127, 255, cv2.THRESH_BINARY)           
     self.warped_frame = binary_warped
- 
+
+    ### ADDED CODE: write image for diagnosis ###
+    #cv2.imwrite("bev.jpg", self.warped_frame)
+
     # Display the perspective transformed (i.e. warped) frame
     if plot == True:
       warped_copy = self.warped_frame.copy()
@@ -626,7 +649,7 @@ def main():
   lane_obj = Lane(orig_frame=original_frame)
  
   # Perform thresholding to isolate lane lines
-  lane_line_markings = lane_obj.get_line_markings()
+  lane_line_markings = lane_obj.get_line_markings(plot=False)
  
   # Plot the region of interest on the image
   lane_obj.plot_roi(plot=True)
@@ -641,16 +664,16 @@ def main():
      
   # Find lane line pixels using the sliding window method 
   left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-    plot=False)
+    plot=True, synthesizeRightLane=True)
  
   # Fill in the lane line
-  lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False)
+  lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
      
   # Overlay lines on the original frame
   frame_with_lane_lines = lane_obj.overlay_lane_lines(plot=False)
  
   # Calculate lane line curvature (left and right lane lines)
-  lane_obj.calculate_curvature(print_to_terminal=False)
+  lane_obj.calculate_curvature(print_to_terminal=False, synthesizeRightLane=True)
  
   # Calculate center offset                                                                 
   lane_obj.calculate_car_position(print_to_terminal=False)
@@ -667,9 +690,6 @@ def main():
   # Save the new image in the working directory
   #cv2.imwrite(new_filename, lane_line_markings)
  
-  # Display the image after thresholding
-  #cv2.imshow("Image", lane_line_markings) 
-     
   # Display the window until any key is pressed
   cv2.waitKey(0) 
      
