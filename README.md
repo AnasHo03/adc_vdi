@@ -3,24 +3,39 @@
 ### Docker development
 Clone this repository and recurse submodules
     
-    git clone --recursive https://github.com/CryptoHypnos/adc.git
+    git clone --recurse-submodules https://github.com/CryptoHypnos/adc.git
 
-Pull docker image
+Pull docker image (Only do once except dockerfile changes   )
 
     docker pull stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
 
-Example launching ZED camera inside docker container
+##### Example launching ZED camera inside docker container. (Tested working)
+
+Config file can be found in src/zed_perception/config/zed/common.yaml
+Open a new terminal and run the following command:
 
     docker run --runtime nvidia -it --rm --network host --privileged -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 bash -c "cd /home/workspaces/ros2_ws && \
     . /home/ros2_ws/install/setup.bash && . install/setup.bash && ros2 launch zed_perception zed_launch.py"
 
-Example launching lidar inside docker container. Make sure that the serial_baudrate is correct.
+Checking whether the topics are published.
+    
+    ros2 topic list
+    ros2 topic echo /zed/zed_node/obj_det/objects 
+
+To visualize ZED camera in RViZ (Only tested PC with ROS 2 Humble + camera connected to it).
+
+    cd src/zed_perception/rviz/ && \
+    ros2 run rviz2 rviz2 -d zed2.rviz
+
+
+##### Example launching lidar inside docker container. (Tested working)
+Open a new terminal and run the following command:
 
     docker run --runtime nvidia -it --rm --network host --privileged \
     -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws \
     stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
     bash -c "cd /home/workspaces/ros2_ws && \
-    colcon build && source install/setup.bash && \ 
+    source install/setup.bash && \ 
     ros2 launch sllidar_ros2 sllidar_launch.py"
 
 ### Lane Detection
