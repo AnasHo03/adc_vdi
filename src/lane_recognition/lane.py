@@ -11,7 +11,7 @@ import os
 # File directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
-filepath = os.path.join(parent_dir, "frame_samples", "frame0000.jpg")
+filepath = os.path.join(parent_dir, "frame_samples", "frame0084.jpg")
 
 class Lane:
   """
@@ -43,11 +43,19 @@ class Lane:
      
     # Four corners of the trapezoid-shaped region of interest
     # You need to find these corners manually.
+    # self.roi_points = np.float32([
+    #   (420,400), # Top-left corner
+    #   (160, 500), # Bottom-left corner            
+    #   (1200,500), # Bottom-right corner
+    #   (1050,400) # Top-right corner
+    # ])
+
+    # Cropped image ROI
     self.roi_points = np.float32([
-      (420,400), # Top-left corner
-      (160, 500), # Bottom-left corner            
-      (1200,500), # Bottom-right corner
-      (1050,400) # Top-right corner
+      (500,50), # Top-left corner
+      (110, 180), # Bottom-left corner            
+      (1280,180), # Bottom-right corner
+      (880,50) # Top-right corner
     ])
          
     # The desired corner locations  of the region of interest
@@ -677,6 +685,9 @@ def main():
 
   # Crop image by half
   original_frame = crop_image(original_frame)
+  
+  # Save cropped image
+  #cv2.imwrite("cropped_image.png", original_frame)
 
   # Create a Lane object
   lane_obj = Lane(orig_frame=original_frame)
