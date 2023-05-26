@@ -28,6 +28,9 @@ class Line_Follower():
         self.emergency_stop = False
         self.shutdowned = False
 
+        # define messages
+        self.ackMsg = AckermannDriveStamped()
+
         # init Subcriber
         rospy.Subscriber('/joy', UInt16MultiArray, self.emergency_shutdown_callback) 
         rospy.Subscriber('/camera/color/image_raw', ROS_Image, self.cam_callback)
@@ -47,15 +50,14 @@ class Line_Follower():
     def cam_callback(self, col_img_raw):
         # Return if emergncy stop activated
         if self.emergency_stop == True: return
-
-        # Bild einlesen (Legacy)
-        # img = np.frombuffer(col_img_raw.data, dtype=np.uint8).reshape(col_img_raw.height, col_img_raw.width, -1) 
-        # img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
-        # Convert ROS message to jpeg
+        # Convert ROS message to jpeg (TODO: find more efficient way to load image to Lane)
         jpeg_img = self.convert_image_msg_to_jpg(col_img_raw.data)
+        # TODO: possible more efficient way
+        #self.bridge.imgmsg_to_cv2(col_img_raw.data, "bgr8")
 
-        # Lane recognition (Fetch center_offset) (TODO: adjust formatting of image from message)
+
+        # Lane recognition (Fetch center_offset) 
         lane_instance = Lane(col_img_raw.data)
         center_offset = lane_instance.calculate_car_position(print_to_terminal=True)
         print("Center Offset:", center_offset)
@@ -84,9 +86,10 @@ class Line_Follower():
         return limited_control_signal
 
     def send_ackermann(self,steering_angle, thrust = constant_thrust):
-        self.ackermann_msg.drive.steering_angle = steering_angle
-        self.ackermann_msg.drive.speed = thrust
-        self.servo_pub.publish(self.ackermann_msg)
+        self.ackMsg.header.stamp = rospy.Time.now()
+        self.ackMsg.drive.steering_angle = steering_angle
+        self.ackMsg.drive.speed = thrust
+        self.ackermann_pub.publish(self.ackMsg)
 
     def hook(self):                 # When node shuts down send 0 thrust and steering for 1 second
         print("Initiate shutdown!")
@@ -100,7 +103,11 @@ class Line_Follower():
 def main():
     node = Line_Follower()
     print("Line follower node initialized")
-    rospy.spin()
+
+    try:
+        rospy.spin()
+    except KeyboardInterrupt:
+        print("Shutting down")
 
 if __name__ == '__main__':
     main()
