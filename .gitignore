@@ -1,1 +1,6 @@
-/src/mxck_ws
+src/mxck_ws
+build
+log
+install
+.vscode
+depth_map.png
