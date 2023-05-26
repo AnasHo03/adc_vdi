@@ -447,7 +447,7 @@ class Lane:
              
     return self.left_fit, self.right_fit
  
-  def get_line_markings(self, frame=None, plot=True):
+  def get_line_markings(self, frame=None, plot=True, simplify_thresholding=True):
     """
     Isolates lane lines.
    
@@ -471,6 +471,13 @@ class Lane:
     _, sxbinary = edge.threshold(hls[:, :, 1], thresh=(170, 255))
     sxbinary = edge.blur_gaussian(sxbinary, ksize=3) # Reduce noise
 
+    if simplify_thresholding==True:
+      print("Simplified thresholding!")
+      self.lane_line_markings = sxbinary
+      if plot==True:
+        cv2.imshow("Threshold Image", self.lane_line_markings)
+      return self.lane_line_markings
+  
     # 1s will be in the cells with the highest Sobel derivative values
     # (i.e. strongest lane line edges)
     #sxbinary = edge.mag_thresh(sxbinary, sobel_kernel=3, thresh=(110, 255))
@@ -506,10 +513,11 @@ class Lane:
     # from this return value. The edges of lane lines are thin lines of pixels.
     self.lane_line_markings = cv2.bitwise_or(rs_binary, sxbinary.astype(
                               np.uint8))
-    self.lane_line_markings = sxbinary
+    
+
     if plot==True:
-      cv2.imshow("Image", self.lane_line_markings)
-      return
+      cv2.imshow("Threshold Image", self.lane_line_markings)
+
     return self.lane_line_markings
          
   def histogram_peak(self):
@@ -644,21 +652,23 @@ class Lane:
  
     cv2.destroyAllWindows()
 
-def crop_image_by_half(image):
+def crop_image(image):
   if image is None:
       print("Failed to load the image.")
       return None
 
-  # Get the height of the image
-  height = image.shape[0]
+  # Get the dimensions of the image
+  height, width = image.shape[:2]
 
-  # Calculate the new height (half of the original)
-  new_height = height // 2
+  # Define the cropping parameters
+  top_crop = 320
+  bottom_crop = 150
 
-  # Crop the image by selecting the upper half
-  cropped_image = image[new_height:, :]
+  # Crop the image
+  cropped_image = image[top_crop:height - bottom_crop, :]
 
   return cropped_image
+
   
 def main():
      
@@ -666,16 +676,16 @@ def main():
   original_frame = cv2.imread(filepath)
 
   # Crop image by half
-  #original_frame = crop_image_by_half(original_frame)
+  original_frame = crop_image(original_frame)
 
   # Create a Lane object
   lane_obj = Lane(orig_frame=original_frame)
 
   # Perform thresholding to isolate lane lines
-  lane_line_markings = lane_obj.get_line_markings(plot=False)
+  lane_line_markings = lane_obj.get_line_markings(plot=True, simplify_thresholding=False)
  
   # Plot the region of interest on the image
-  lane_obj.plot_roi(plot=False)
+  lane_obj.plot_roi(plot=True)
  
   # Perform the perspective transform to generate a bird's eye view
   # If Plot == True, show image with new region of interest
@@ -706,9 +716,9 @@ def main():
     frame=frame_with_lane_lines, plot=True)
      
   # Create the output file name by removing the '.jpg' part
-  size = len(filepath)
-  new_filepath = filepath[:size - 4]
-  new_filepath = new_filepath + '_thresholded.jpg'     
+  # size = len(filepath)
+  # new_filepath = filepath[:size - 4]
+  # new_filepath = new_filepath + '_thresholded.jpg'     
      
   # Save the new image in the working directory
   #cv2.imwrite(new_filepath, lane_line_markings)
