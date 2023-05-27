@@ -7,3 +7,11 @@
 [submodule "src/zed-ros2-wrapper"]
 	path = src/zed-ros2-wrapper
 	url = https://github.com/stereolabs/zed-ros2-wrapper.git
+[submodule "src/vesc"]
+	path = src/vesc
+	url = https://github.com/Mailamaca/vesc.git
+	branch = ackermann_launch_files
+[submodule "src/transport_drivers"]
+	path = src/transport_drivers
+	url = https://github.com/ros-drivers/transport_drivers.git
+	branch = humble
