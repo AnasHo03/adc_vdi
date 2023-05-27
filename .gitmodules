@@ -10,7 +10,7 @@
 [submodule "src/vesc"]
 	path = src/vesc
 	url = https://github.com/Mailamaca/vesc.git
-	branch = ackermann_launch_files
+	branch = ros2
 [submodule "src/transport_drivers"]
 	path = src/transport_drivers
 	url = https://github.com/ros-drivers/transport_drivers.git
