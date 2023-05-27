@@ -1,0 +1,64 @@
+rc_joystick:
+  ros__parameters:
+
+    # RC signal
+    steering_min_pwm: 1100
+    steering_mid_pwm: 1515
+    steering_max_pwm: 1900
+    throttle_min_pwm: 1000
+    throttle_mid_pwm: 1500
+    throttle_max_pwm: 2000
+    mode_min_pwm: 1000
+    mode_mid_pwm: 1500
+    mode_max_pwm: 2000
+
+    # Vesc
+    # From vesc_ros2
+    port: "/dev/ttyACM0"
+    brake_max: 200000.0
+    brake_min: -20000.0
+    current_max: 100.0
+    current_min: 0.0
+    duty_cycle_max: 0.0
+    duty_cycle_min: 0.0
+    position_max: 0.0
+    position_min: 0.0
+    servo_max: 0.85
+    servo_min: 0.15
+    speed_max: 23250.0
+    speed_min: -23250.0
+    # From mxck
+    servo_max: 0.9
+    servo_min: 0.1
+    servo_mid: 0.502
+    wheelbase: 0.36
+
+    # Left and right circle
+    lr_rmin: 0.76
+    rr_rmin: 0.82
+
+    # Speed
+    speed_to_erpm_gain: 3786
+    speed_to_erpm_offset: 0
+
+    # Servo
+    servo_rad_min: -0.442
+    servo_rad_mid: 0
+    servo_rad_max: 0.442
+
+    # Maximum speed
+    speed_min: -2.0
+    speed_mid: 0
+    speed_max: 2.5
+
+    # Manual control
+    rc_speed_axis: 1
+    rc_steering_axis: 0
+    rc_deadman_button: 0
+    joy_speed_axis: 1
+    joy_steering_axis: 3
+    joy_deadman_button: 4 
+
+    # Deadzones
+    speed_deadzone: 0.001
+    steer_deadzone: 0.001
