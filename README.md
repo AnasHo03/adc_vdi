@@ -21,7 +21,7 @@ Pulling new changes
     git pull --recurse-submodules
     git submodule update --init --recursive
 
-Pulling docker image (Only do once except dockerfile changes)
+Pulling docker image (Only do once except dockerfile changes). This dockerfile only works for Jetson Linux 35.x.
 
     docker pull stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
 
@@ -68,3 +68,27 @@ Open a new terminal and run the following command:
     bash -c "cd /home/workspaces/ros2_ws && \
     source install/setup.bash && \ 
     ros2 launch sllidar_ros2 sllidar_launch.py"
+
+#### Example launching vehicle control using VESC. (Not Tested)
+Open a new terminal and run the following command to launch VESC driver:
+
+    docker run --runtime nvidia -it --rm --network host --privileged \
+    -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws \
+    stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
+    bash -c "cd /home/workspaces/ros2_ws && \
+    source install/setup.bash && \ 
+    ros2 launch vesc_driver vesc_driver_node.launch.py"
+    
+ Open a new terminal and run the manual vehicle control:
+
+    docker run --runtime nvidia -it --rm --network host --privileged \
+    -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws \
+    stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
+    bash -c "cd /home/workspaces/ros2_ws && \
+    source install/setup.bash && \ 
+    ros2 launch vehicle_control manual_control.launch.py"
+    
+ ### TODO
+- Test the above two launch files
+- Simplify by launching VESC driver inside the mmanual control launch file
+- Work on getting STM32 Ultrasonic sensor data using MicroROS
