@@ -7,3 +7,18 @@
 [submodule "src/zed-ros2-wrapper"]
 	path = src/zed-ros2-wrapper
 	url = https://github.com/stereolabs/zed-ros2-wrapper.git
+[submodule "src/vesc"]
+	path = src/vesc
+	url = https://github.com/Mailamaca/vesc.git
+	branch = ros2
+[submodule "src/transport_drivers"]
+	path = src/transport_drivers
+	url = https://github.com/ros-drivers/transport_drivers.git
+	branch = humble
+[submodule "src/ackermann_msgs"]
+	path = src/ackermann_msgs
+	url = https://github.com/ros-drivers/ackermann_msgs.git
+	branch = ros2
+[submodule "src/udp_msgs"]
+	path = src/udp_msgs
+	url = https://github.com/flynneva/udp_msgs.git
