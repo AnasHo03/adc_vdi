@@ -29,6 +29,12 @@ Opening a new terminal inside docker
 
     docker run --runtime nvidia -it --rm --network host --privileged -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
 
+Go to our directory inside docker
+
+    cd /home/workspaces/ros2_ws/
+    # Source build packages
+    source /home/ros2_ws/install/setup.bash && source install/setup.bash
+
 #### Example launching ZED camera inside docker container. (Tested working)
 
 Config file can be found in: src/zed_perception/config/zed. Change the camera_model accordingly in zed_launch.py and zed.yaml to 'zed' or 'zed2'.

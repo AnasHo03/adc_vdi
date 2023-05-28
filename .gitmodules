@@ -19,3 +19,6 @@
 	path = src/ackermann_msgs
 	url = https://github.com/ros-drivers/ackermann_msgs.git
 	branch = ros2
+[submodule "src/udp_msgs"]
+	path = src/udp_msgs
+	url = https://github.com/flynneva/udp_msgs.git
