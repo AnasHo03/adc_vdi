@@ -18,7 +18,7 @@ Clone this repository and recurse submodules (First time)
 
 Pulling new changes
 
-    git pull --recursive
+    git pull --recurse-submodules
     git submodule update --init --recursive
 
 Pulling docker image (Only do once except dockerfile changes)
