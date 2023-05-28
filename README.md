@@ -34,6 +34,10 @@ Go to our directory inside docker
     cd /home/workspaces/ros2_ws/
     # Source build packages
     source /home/ros2_ws/install/setup.bash && source install/setup.bash
+    # Build your package
+    colcon build --packages-select <your_package>
+
+###### Note: Ctrl + D to quit docker environment. Always git pull changes outside docker, otherwise we will sometimes get permission issues with colcon build and git.
 
 #### Example launching ZED camera inside docker container. (Tested working)
 
