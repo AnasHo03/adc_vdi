@@ -15,3 +15,7 @@
 	path = src/transport_drivers
 	url = https://github.com/ros-drivers/transport_drivers.git
 	branch = humble
+[submodule "src/ackermann_msgs"]
+	path = src/ackermann_msgs
+	url = https://github.com/ros-drivers/ackermann_msgs.git
+	branch = ros2
