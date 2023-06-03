@@ -1,8 +1,11 @@
+import os
+import yaml
+from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch_ros.actions import Node
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node, ComposableNodeContainer
-from launch_ros.descriptions import ComposableNode
 from launch.conditions import IfCondition
 from launch.substitutions import PythonExpression
 
@@ -10,24 +13,22 @@ def generate_launch_description():
 
     # Declare arguments
     control_type_arg = DeclareLaunchArgument('control_type', default_value='rc')
-    control_config_arg = DeclareLaunchArgument('control_config', default_value='vehicle_control/config/control_config.yaml')
     joy_port_arg = DeclareLaunchArgument('joy_port', default_value='/dev/input/js0')
-    vesc_port_arg = DeclareLaunchArgument('vesc_port', default_value='/dev/vesc')
 
-    # Load parameters
-    load_params = ComposableNode(
-        package='vehicle_control',
-        plugin='control_config',
-        parameters=[LaunchConfiguration('control_config')],
-        name='param_loader'
+    control_config_file = os.path.join(
+        get_package_share_directory('vehicle_control'),
+        'config',
+        'control_config.yaml'
     )
+    with open(control_config_file, 'r') as file:
+        control_config = yaml.safe_load(file)['vehicle_control']['ros_parameters']
 
     # vesc
     vesc_driver_node = Node(
         package='vesc_driver',
         executable='vesc_driver_node',
         name='vesc_driver_node',
-        parameters=[{'port': LaunchConfiguration('vesc_port')}]
+        parameters=[control_config]
     )
 
     # rc control
@@ -67,10 +68,8 @@ def generate_launch_description():
 
     return LaunchDescription([
         control_type_arg,
-        control_config_arg,
         joy_port_arg,
-        vesc_port_arg,
-        load_params,
+
         vesc_driver_node,
         rc_to_joy_node,
         joy_node,
