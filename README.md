@@ -5,7 +5,8 @@ All packages including drivers, submodules, and dependencies are available insid
     ├── depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image
     ├── lane_recognition    : Package to recognize lane lines based on image processing algorithms
     ├── line_follower       : Package that outputs steering command velocity based on the offset from the lane midpoint
-    ├── vehicle_control     : Package to control the vehicle using the VESC motor  
+    ├── team_interfaces           : Custom messages definition for our autonomous racing and parking module
+    ├── vehicle_control     : Package to control the vehicle using the ackermann message and VESC motor  
     ├── zed_perception      : Package to launch the ZED camera nodes, including config for the ZED object detection API
 
 ### Docker development
