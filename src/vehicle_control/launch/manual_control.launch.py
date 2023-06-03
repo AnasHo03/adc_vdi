@@ -1,3 +1,4 @@
+
 import os
 import yaml
 from ament_index_python.packages import get_package_share_directory
@@ -37,6 +38,7 @@ def generate_launch_description():
         executable='rc_to_joy.py',
         name='rc_to_joy',
         output='screen',
+        parameters=[control_config],
         condition=IfCondition(PythonExpression(["'", LaunchConfiguration('control_type'), "' == 'rc'"]))
     )
 
@@ -55,7 +57,8 @@ def generate_launch_description():
         package='vehicle_control',
         executable='joy_to_ackermann.py',
         name='joy_to_ackermann',
-        output='screen'
+        output='screen',
+        parameters=[control_config]
     )
 
     # ackermann_to_vesc
@@ -63,7 +66,8 @@ def generate_launch_description():
         package='vehicle_control',
         executable='ackermann_to_vesc.py',
         name='ackermann_to_vesc',
-        output='screen'
+        output='screen',
+        parameters=[control_config]
     )
 
     return LaunchDescription([
@@ -72,7 +76,7 @@ def generate_launch_description():
 
         vesc_driver_node,
         rc_to_joy_node,
-        joy_node,
+        # joy_node,
         joy_to_ackermann_node,
         ackermann_to_vesc_node
     ])

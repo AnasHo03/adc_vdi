@@ -17,10 +17,9 @@ class JoyControl(Node):
 
         # check parameter
         if not self.control_type in self.control_types:
-            self.get_logger().error('Invalid control type parameter. Choose between %s, and %s.' 
-            % tuple(self.control_types))
+            self.get_logger().error(f'Invalid control type parameter. Choose between {self.control_types}.')
         else:
-            self.get_logger().info("control_type: %s", self.control_type)
+            self.get_logger().info(f'control_type: {self.control_type}')
 
         # load parameters
         self.load_params()
