@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from ackermann_msgs.msg import AckermannDriveStamped
+from ackermann_msgs.msg import AckermannDrive
 from sensor_msgs.msg import Joy
 
 class JoyControl(Node):
@@ -25,10 +25,10 @@ class JoyControl(Node):
         self.load_params()
 
         # define messages
-        self.ackMsg = AckermannDriveStamped()
+        self.ackMsg = AckermannDrive()
 
         # publish ackermann messages to VESC
-        self.ackermann_pub = self.create_publisher(AckermannDriveStamped, '/ackermann_cmd', 1)
+        self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 1)
 
         # subscribe to joy
         self.joy_sub = self.create_subscription(Joy, '/joy', self.callback, 10)
@@ -59,9 +59,9 @@ class JoyControl(Node):
             else:
                 speed_mps = self.speed_mid
 
-        self.ackMsg.header.stamp = self.get_clock().now().to_msg()
-        self.ackMsg.drive.steering_angle = steer_rad
-        self.ackMsg.drive.speed = speed_mps
+        # self.ackMsg.header.stamp = self.get_clock().now().to_msg()
+        self.ackMsg.steering_angle = steer_rad
+        self.ackMsg.speed = speed_mps
 
         self.ackermann_pub.publish(self.ackMsg)
 

@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from ackermann_msgs.msg import AckermannDriveStamped
+from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import Float64
 from math import atan
 import numpy as np
@@ -24,15 +24,15 @@ class AckermannToVesc(Node):
       self.servo_msg = Float64()
 
       # subscribe to pwm signals from rc receiver
-      self.rc_subscription = self.create_subscription(AckermannDriveStamped, '/ackermann_cmd', self.callback, 10)
+      self.rc_subscription = self.create_subscription(AckermannDrive, '/ackermann_cmd', self.callback, 10)
 
       # publish commands to vesc driver
       self.erpm_publisher = self.create_publisher(Float64, '/commands/motor/speed', 10) 
       self.servo_publisher = self.create_publisher(Float64, '/commands/servo/position', 10) 
 
    def callback(self, ackermann_msg):
-      steer_rad = ackermann_msg.drive.steering_angle
-      speed = ackermann_msg.drive.speed
+      steer_rad = ackermann_msg.steering_angle
+      speed = ackermann_msg.speed
 
       # Similar to real vehicles, carkits cannot drive infinitely slow. 
       # That is why we set a minimum starting speed.
