@@ -76,7 +76,7 @@ def generate_launch_description():
 
         vesc_driver_node,
         rc_to_joy_node,
-        # joy_node,
+        joy_node,
         joy_to_ackermann_node,
         ackermann_to_vesc_node
     ])
