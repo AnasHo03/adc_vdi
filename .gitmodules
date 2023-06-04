@@ -28,4 +28,4 @@
 	branch = ros2
 [submodule "src/twist_to_ackermann"]
 	path = src/twist_to_ackermann
-	url = https://github.com/iscumd/twist_to_ackermann.git
+	url = https://github.com/stephenadhi/twist_to_ackermann.git
