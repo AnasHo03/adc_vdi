@@ -14,7 +14,7 @@ vehicle_control:
 
     # Vesc
     # From vesc_ros2
-    port: "/dev/ttyACM0"
+    port: "/dev/vesc"
     brake_max: 200000.0
     brake_min: -20000.0
     current_max: 100.0
