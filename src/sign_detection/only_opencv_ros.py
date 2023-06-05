@@ -59,7 +59,7 @@ class ImageProcessor(Node):
  
 
 
-        # Publish the detections as ROS Image message
+        # Publish the detections as ROS String message
         if scores:
             max_score_index = np.argmax(scores)
             max_score = scores[max_score_index]
