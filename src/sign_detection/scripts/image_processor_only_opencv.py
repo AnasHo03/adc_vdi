@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import cv2
 #import cv2.dnn.cuda as cuda_dnn #*1 for gpu use (open cv with cuda support necessary)
 import numpy as np
@@ -6,12 +8,14 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from std_msgs.msg import String
+import os
 
 
 #cuda_dnn.dnn_cuda.init_device() #*1 for gpu use (open cv with cuda support necessary)
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
 
-model_path = "/home/johannes/Desktop/Projekte/VDIADC/Training environment/Inferencing environment/best.onnx"
+script_path = os.path.realpath(__file__)
+model_path = os.path.join(os.getcwd(), 'model_files', 'best.onnx')
 
 #set up model
 model: cv2.dnn.Net = cv2.dnn.readNetFromONNX(model_path)    #model = cuda_dnn.readNetFromONNX(model_path) #*1
