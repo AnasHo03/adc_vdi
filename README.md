@@ -8,7 +8,7 @@ All packages including drivers, submodules, and dependencies are available insid
     ├── team_interfaces     : Custom messages definition for our autonomous racing and parking module
     ├── vehicle_control     : Package to control the vehicle using the ackermann message and VESC motor  
     ├── zed_perception      : Package to launch the ZED camera nodes, including config for the ZED object detection API
-    ├── sign_detection      : Package to detect specific signs based on an custom trained yolov8n model.
+    ├── sign_detection      : Package to detect specific signs based on a custom trained yolov8n model.
     
 ### Docker development
 
