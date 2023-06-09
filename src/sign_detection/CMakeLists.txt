@@ -7,6 +7,7 @@ find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(rclpy REQUIRED)
+find_package(OpenCV REQUIRED)
 
 # Set the path to your Python script
 set(script_files 

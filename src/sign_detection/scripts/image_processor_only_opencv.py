@@ -9,20 +9,17 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from std_msgs.msg import String
 import os
-
+from ament_index_python.packages import get_package_share_directory
 
 #cuda_dnn.dnn_cuda.init_device() #*1 for gpu use (open cv with cuda support necessary)
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
 
-script_path = os.path.realpath(__file__)
-model_path = os.path.join(os.getcwd(), 'model_files', 'best.onnx')
-
-#set up model
-model: cv2.dnn.Net = cv2.dnn.readNetFromONNX(model_path)    #model = cuda_dnn.readNetFromONNX(model_path) #*1
-
 class ImageProcessor(Node):
     def __init__(self):
         super().__init__('image_processor')
+        #set up model
+        model_path = os.path.join(get_package_share_directory('sign_detection'), 'model_files', 'best.onnx')
+        self.model = cv2.dnn.readNetFromONNX(model_path)    #model = cuda_dnn.readNetFromONNX(model_path) #*1
         self.subscription = self.create_subscription(Image,'image_topic',self.process_image,10)
         self.publisher = self.create_publisher(String,'detections_topic',10)
         self.cv_bridge = CvBridge()
@@ -37,10 +34,10 @@ class ImageProcessor(Node):
         image = np.zeros((length, length, 3), np.uint8)
         image[0:height, 0:width] = cv_image
         blob = cv2.dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True)    #blob = cuda_dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True) #*1
-        model.setInput(blob)
+        self.model.setInput(blob)
 
         # Run inference
-        outputs = model.forward()
+        outputs = self.model.forward()
 
         # Preprocess output
         outputs = np.array([cv2.transpose(outputs[0])])    #outputs = np.array([cuda_dnn.imagesFromBlob(outputs)[0]]) #*1
