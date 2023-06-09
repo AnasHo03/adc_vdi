@@ -1,17 +1,126 @@
+#!/usr/bin/env python
+
+# ROS dependancies
+import rospy
+from ackermann_msgs.msg import AckermannDriveStamped
+from std_msgs.msg import UInt8
+from sensor_msgs.msg import Image as ROS_Image
+import time
+from std_msgs.msg import UInt16MultiArray
+
+# Python dependancies
 import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
 import edge_detection as edge # Handles the detection of lane lines
+from cv_bridge import CvBridge # For converting ROS image message to jpg
 import matplotlib.pyplot as plt # Used for plotting and error checking
-import os
- 
-# Author: Addison Sears-Collins
-# https://automaticaddison.com
-# Description: Implementation of the Lane class 
 
-# File directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
-filepath = os.path.join(parent_dir, "frame_samples", "frame0001.jpg")
+
+# Local dependancies
+
+# Parameters
+max_steering_angle = 0.4692 # [rad]
+constant_thrust = 100 # [rpm]
+kp = 0.05  # Proportional gain constant
+
+class Line_Follower():
+    def __init__(self):
+
+        rospy.init_node('line_follower_node')
+
+        # Logic variables
+        self.emergency_stop = False
+        self.shutdowned = False
+
+        # define messages
+        self.ackMsg = AckermannDriveStamped()
+
+        # init Subcriber
+        rospy.Subscriber('/joy', UInt16MultiArray, self.emergency_shutdown_callback) 
+        rospy.Subscriber('/camera/color/image_raw', ROS_Image, self.cam_callback)
+
+        # init publisher
+        self.ackermann_pub = rospy.Publisher('/ackermann_cmd', AckermannDriveStamped, queue_size=1) 
+
+        # init hook (Shut down procedure)
+        rospy.on_shutdown(self.hook)
+
+    def emergency_shutdown_callback(self, msg):
+        if self.joy_msg.buttons == 2:
+                emergency_stop = True
+                rospy.signal_shutdown('Killswitch activated!')
+
+
+    def cam_callback(self, col_img_raw):
+        # Return if emergncy stop activated
+        if self.emergency_stop == True:
+            return
+
+        # Convert the ROS image message to OpenCV format
+        bridge = CvBridge()         # Instantiate CvBridge
+        #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+        
+        # Use sample image for testing
+        cv_image = cv2.imread('./src/line_follower/scripts/frame0001.jpg')
+
+        # Test if image is converted to jpeg
+        #cv2.imwrite('./src/line_follower/scripts/camera_image.jpeg', cv_image)
+
+        # Crop image by half
+        cv_image = crop_image(cv_image)
+        #cv2.imwrite('./src/line_follower/scripts/camera_image.jpeg', cv_image)
+
+        # Lane instance 
+        lane_obj = Lane(cv_image)
+
+        # Perform thresholding to isolate lane lines
+        lane_line_markings = lane_obj.get_line_markings(plot=False, simplify_thresholding=True)
+
+        # Perform the perspective transform to generate a bird's eye view
+        # If Plot == True, show image with new region of interest
+        warped_frame = lane_obj.perspective_transform(plot=True)
+
+        # Generate the image histogram to serve as a starting point
+        # for finding lane line pixels
+        histogram = lane_obj.calculate_histogram(plot=False) 
+
+        # Find lane line pixels using the sliding window method 
+        left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
+        plot=False, synthesizeRightLane=True)
+
+        # Fill in the lane line
+        lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
+
+        center_offset = lane_obj.calculate_car_position(print_to_terminal=True)
+        #center_offset = -10
+        print("Center Offset:", center_offset)
+
+        # Calculate steering angle (P-controller)
+        steering_angle = self.calculate_steering_angle(center_offset, max_steering_angle)
+
+        # Publish Ackermann message
+        self.send_ackermann(steering_angle)
+
+    def calculate_steering_angle(self, center_offset, max_steering_angle):
+        error = 0 - center_offset  # Desired offset is zero
+        control_signal = kp * error
+        limited_control_signal = max(min(control_signal, max_steering_angle), -max_steering_angle)
+        return limited_control_signal
+
+    def send_ackermann(self,steering_angle, thrust = constant_thrust):
+        self.ackMsg.header.stamp = rospy.Time.now()
+        self.ackMsg.drive.steering_angle = steering_angle
+        self.ackMsg.drive.speed = thrust
+        self.ackermann_pub.publish(self.ackMsg)
+
+    def hook(self):                 # When node shuts down send 0 thrust and steering for 1 second
+        print("Initiate shutdown!")
+        self.shutdowned = True
+        t0 = time.time()
+        t_close = 1
+
+        while (time.time() - t0) < t_close: 
+            self.send_ackermann(0,0)
 
 class Lane:
   """
@@ -43,14 +152,6 @@ class Lane:
      
     # Four corners of the trapezoid-shaped region of interest
     # You need to find these corners manually.
-    # self.roi_points = np.float32([
-    #   (420,400), # Top-left corner
-    #   (160, 500), # Bottom-left corner            
-    #   (1200,500), # Bottom-right corner
-    #   (1050,400) # Top-right corner
-    # ])
-
-    # Cropped image ROI
     self.roi_points = np.float32([
       (500,50), # Top-left corner
       (110, 180), # Bottom-left corner            
@@ -75,8 +176,10 @@ class Lane:
          
     # Sliding window parameters
     self.no_of_windows = 10
-    self.margin = int((1/12) * width)  # Window width is +/- margin
-    self.minpix = int((1/24) * width)  # Min no. of pixels to recenter window
+
+    # Adjusted fractions to floats. Otherwise zero. (Hypnos)
+    self.margin = int(0.08333 * width)  # Window width is +/- margin 
+    self.minpix = int(0.04166 * width)  # Min no. of pixels to recenter window
 
     # Best fit polynomial lines for left line and right line of the lane
     self.left_fit = None
@@ -190,8 +293,11 @@ class Lane:
       ax1.set_title("Warped Binary Frame")
       ax2.plot(self.histogram)
       ax2.set_title("Histogram Peaks")
-      plt.show()
-             
+      # Turn off interactive mode
+      plt.ioff()
+      # Save the plot as an image file
+      plt.savefig('./src/line_follower/scripts/camera_image_histogram.jpeg')
+
     return self.histogram
  
   def display_curvature_offset(self, frame=None, plot=False):
@@ -341,7 +447,7 @@ class Lane:
     margin = self.margin
  
     frame_sliding_window = self.warped_frame.copy()
-
+ 
     # Set the height of the sliding windows
     window_height = np.int32(self.warped_frame.shape[0]/self.no_of_windows)       
 
@@ -350,7 +456,7 @@ class Lane:
     nonzero = self.warped_frame.nonzero()
     nonzeroy = np.array(nonzero[0])
     nonzerox = np.array(nonzero[1]) 
-         
+
     # Store the pixel indices for the left and right lane lines
     left_lane_inds = []
     right_lane_inds = []
@@ -358,7 +464,6 @@ class Lane:
     # Current positions for pixel indices for each window,
     # which we will continue to update
     leftx_base, rightx_base = self.histogram_peak()
-
     leftx_current = leftx_base
     rightx_current = rightx_base
 
@@ -379,7 +484,7 @@ class Lane:
         win_xleft_high,win_y_high), (255,255,255), 2)
       cv2.rectangle(frame_sliding_window,(win_xright_low,win_y_low),(
         win_xright_high,win_y_high), (255,255,255), 2)
-
+ 
       # Identify the nonzero pixels in x and y within the window
       good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
                           (nonzerox >= win_xleft_low) & (
@@ -387,7 +492,7 @@ class Lane:
       good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & 
                            (nonzerox >= win_xright_low) & (
                             nonzerox < win_xright_high)).nonzero()[0]
-                                                   
+
       # Append these indices to the lists
       left_lane_inds.append(good_left_inds)
       right_lane_inds.append(good_right_inds)
@@ -398,7 +503,7 @@ class Lane:
         leftx_current = np.int32(np.mean(nonzerox[good_left_inds]))
       if len(good_right_inds) > minpix:        
         rightx_current = np.int32(np.mean(nonzerox[good_right_inds]))
-                     
+
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
@@ -411,11 +516,11 @@ class Lane:
   
     # Fit a second order polynomial curve to the pixel coordinates for
     # the left and right lane lines    
-    ### ADDED CODE: syntesize right lane from left ###
+    # Syntesize right lane from left (Hypnos)
     if(synthesizeRightLane == synthesizeRightLane):
       righty = lefty
       rightx = leftx + 400
-    ### END ADDED CODE ###
+
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2) 
 
@@ -482,7 +587,7 @@ class Lane:
     sxbinary = edge.blur_gaussian(sxbinary, ksize=3) # Reduce noise
 
     if simplify_thresholding==True:
-      print("Simplified thresholding!")
+      #print("Simplified thresholding!")
       self.lane_line_markings = sxbinary
       if plot==True:
         cv2.imshow("Threshold Image", self.lane_line_markings)
@@ -623,44 +728,11 @@ class Lane:
       warped_copy = self.warped_frame.copy()
       warped_plot = cv2.polylines(warped_copy, np.int32([
                     self.desired_roi_points]), True, (147,20,255), 3)
- 
-      # Display the image
-      while(1):
-        cv2.imshow('Warped Image', warped_plot)
-             
-        # Press any key to stop
-        if cv2.waitKey(0):
-          break
- 
-      cv2.destroyAllWindows()   
-             
+      cv2.imwrite('./src/line_follower/scripts/camera_image_bev.jpeg', warped_plot)
+
+
+
     return self.warped_frame        
-     
-  def plot_roi(self, frame=None, plot=False):
-    """
-    Plot the region of interest on an image.
-    :param: frame The current image frame
-    :param: plot Plot the roi image if True
-    """
-    if plot == False:
-      return
-             
-    if frame is None:
-      frame = self.orig_frame.copy()
- 
-    # Overlay trapezoid on the frame
-    this_image = cv2.polylines(frame, np.int32([
-      self.roi_points]), True, (147,20,255), 3)
- 
-    # Display the image
-    while(1):
-      cv2.imshow('ROI Image', this_image)
-             
-      # Press any key to stop
-      if cv2.waitKey(0):
-        break
- 
-    cv2.destroyAllWindows()
 
 def crop_image(image):
   if image is None:
@@ -679,66 +751,14 @@ def crop_image(image):
 
   return cropped_image
 
-  
 def main():
-  # Load a frame (or image)
-  original_frame = cv2.imread(filepath)
+    node = Line_Follower()
+    print("Line follower node initialized")
 
-  # Crop image by half
-  original_frame = crop_image(original_frame)
-  
-  # Save cropped image
-  #cv2.imwrite("cropped_image.png", original_frame)
+    try:
+        rospy.spin()
+    except KeyboardInterrupt:
+        print("Shutting down")
 
-  # Create a Lane object
-  lane_obj = Lane(orig_frame=original_frame)
-
-  # Perform thresholding to isolate lane lines
-  lane_line_markings = lane_obj.get_line_markings(plot=False, simplify_thresholding=False)
- 
-  # Plot the region of interest on the image
-  lane_obj.plot_roi(plot=False)
- 
-  # Perform the perspective transform to generate a bird's eye view
-  # If Plot == True, show image with new region of interest
-  warped_frame = lane_obj.perspective_transform(plot=False)
- 
-  # Generate the image histogram to serve as a starting point
-  # for finding lane line pixels
-  histogram = lane_obj.calculate_histogram(plot=True)  
-     
-  # Find lane line pixels using the sliding window method 
-  left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-    plot=False, synthesizeRightLane=True)
- 
-  # Fill in the lane line
-  lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
-     
-  # Overlay lines on the original frame
-  frame_with_lane_lines = lane_obj.overlay_lane_lines(plot=False)
- 
-  # Calculate lane line curvature (left and right lane lines)
-  lane_obj.calculate_curvature(print_to_terminal=False, synthesizeRightLane=True)
- 
-  # Calculate center offset                                                                 
-  lane_obj.calculate_car_position(print_to_terminal=False)
-     
-  # Display curvature and center offset on image
-  frame_with_lane_lines2 = lane_obj.display_curvature_offset(
-    frame=frame_with_lane_lines, plot=True)
-     
-  # Create the output file name by removing the '.jpg' part
-  # size = len(filepath)
-  # new_filepath = filepath[:size - 4]
-  # new_filepath = new_filepath + '_thresholded.jpg'     
-     
-  # Save the new image in the working directory
-  #cv2.imwrite(new_filepath, lane_line_markings)
- 
-  # Display the window until any key is pressed
-  cv2.waitKey(0) 
-     
-  # Close all windows
-  cv2.destroyAllWindows() 
-     
-main()
+if __name__ == '__main__':
+    main()
