@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 from std_msgs.msg import String
 import os
@@ -20,13 +20,13 @@ class ImageProcessor(Node):
         #set up model
         model_path = os.path.join(get_package_share_directory('sign_detection'), 'model_files', 'best.onnx')
         self.model = cv2.dnn.readNetFromONNX(model_path)    #model = cuda_dnn.readNetFromONNX(model_path) #*1
-        self.subscription = self.create_subscription(Image,'image_topic',self.process_image,10)
+        self.subscription = self.create_subscription(CompressedImage,'/zed/zed_node/left/image_rect_color/compressed',self.process_image,10)
         self.publisher = self.create_publisher(String,'detections_topic',10)
         self.cv_bridge = CvBridge()
 
     def process_image(self, msg):
         # Convert ROS Image message to OpenCV image
-        cv_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        cv_image = self.cv_bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
         # Preprocess input
         [height, width, _] = cv_image.shape
