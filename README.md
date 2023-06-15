@@ -79,10 +79,8 @@ Open a new terminal and run the following command:
     stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
     bash -c "cd /home/workspaces/ros2_ws && \
     source install/setup.bash && \ 
-    ros2 launch vehicle_control manual_control.launch.py"
+    ros2 launch vehicle_control autonomous_control.launch.py"
    
 
  ### TODO
-- Test the above two launch files
-- Simplify by launching VESC driver inside the mmanual control launch file
 - Work on getting STM32 Ultrasonic sensor data using MicroROS
