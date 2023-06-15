@@ -188,7 +188,7 @@ def generate_launch_description():
                 description='The name of the camera. It can be different from the camera model and it will be used as node `namespace`. Leave empty to use the camera model as camera name.'),
             DeclareLaunchArgument(
                 'camera_model',
-                default_value=TextSubstitution(text="zed2i"),
+                default_value=TextSubstitution(text="zed"),
                 description='The model of the camera. Using a wrong camera model can disable camera features. Valid models: `zed`, `zedm`, `zed`, `zedi`.'),
             DeclareLaunchArgument(
                 'node_name',
