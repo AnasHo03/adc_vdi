@@ -1,4 +1,3 @@
-
 import os
 import yaml
 from ament_index_python.packages import get_package_share_directory
@@ -32,16 +31,16 @@ def generate_launch_description():
         package='twist_to_ackermann',
         executable='twist_to_ackermann',
         name='twist_to_ackermann',
-        output='screen',
+        parameters=[{'use_stamps': True}],
+        output='screen'
     )
 
     # ackermann_to_vesc
     ackermann_to_vesc_node = Node(
-        package='vehicle_control',
-        executable='ackermann_to_vesc.py',
+        package='vesc_ackermann',
+        executable='ackermann_to_vesc_node.launch.py',
         name='ackermann_to_vesc',
         output='screen',
-        parameters=[control_config]
     )
 
     return LaunchDescription([
