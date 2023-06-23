@@ -44,11 +44,10 @@ class LineFollower(Node):
         if joy_msg.buttons == 2:
             self.emergency_stop = True
             self.get_logger().info('Killswitch activated!')
-            self.destroy_node()
 
     def cam_callback(self, col_img_raw):
-        # Return if emergency stop activated
-        if self.emergency_stop:
+        # Return if emergncy stop activated
+        if self.emergency_stop == True:
             return
 
         # Convert the ROS image message to OpenCV format
@@ -58,16 +57,12 @@ class LineFollower(Node):
         self.process_image(cv_image)
 
     def process_image(self, cv_image):
-        # Return if emergncy stop activated
-        if self.emergency_stop == True:
-            return
-
         # Convert the ROS image message to OpenCV format
         bridge = CvBridge()         # Instantiate CvBridge
         #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
         
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
+        cv_image = cv2.imread('./src/line_follower/line_follower/frame0097.jpg')
 
         # Test if image is converted to jpeg
         #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
@@ -84,15 +79,21 @@ class LineFollower(Node):
 
         # Perform the perspective transform to generate a bird's eye view
         # If Plot == True, show image with new region of interest
-        warped_frame = lane_obj.perspective_transform(plot=True)
+        warped_frame = lane_obj.perspective_transform(plot=False)
 
         # Generate the image histogram to serve as a starting point
         # for finding lane line pixels
         histogram = lane_obj.calculate_histogram(plot=False) 
 
         # Find lane line pixels using the sliding window method 
-        left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
+        polyfit_found, left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
         plot=False, synthesizeRightLane=True)
+
+        # Return if no polyfits are found
+        if polyfit_found != True:
+          self.send_ackermann_halt()
+          print("No lines detected. Move the car!")
+          return 
 
         # Fill in the lane line
         lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
@@ -116,6 +117,13 @@ class LineFollower(Node):
         ack_msg.header.stamp = self.get_clock().now().to_msg()
         ack_msg.drive.steering_angle = steering_angle
         ack_msg.drive.speed = CONSTANT_THRUST
+        self.ackermann_pub.publish(ack_msg)
+
+    def send_ackermann_halt(self):
+        ack_msg = AckermannDriveStamped()
+        ack_msg.header.stamp = self.get_clock().now().to_msg()
+        ack_msg.drive.steering_angle = 0.0
+        ack_msg.drive.speed = 0.0
         self.ackermann_pub.publish(ack_msg)
 
     def hook(self):
@@ -318,7 +326,7 @@ class Lane:
       # Turn off interactive mode
       plt.ioff()
       # Save the plot as an image file
-      plt.savefig('./src/line_follower/scripts/camera_image_histogram.jpeg')
+      plt.savefig('./src/line_follower/line_follower/histogram_image.png')
 
     return self.histogram
  
@@ -536,13 +544,21 @@ class Lane:
     rightx = nonzerox[right_lane_inds] 
     righty = nonzeroy[right_lane_inds]
   
-    # Fit a second order polynomial curve to the pixel coordinates for
-    # the left and right lane lines    
-    # Syntesize right lane from left (Hypnos)
+    # Syntesize right lane from left (TODO: build logic to synthesize right if not found)
     if(synthesizeRightLane == synthesizeRightLane):
       righty = lefty
       rightx = leftx + 400
 
+    # Return if no points were found
+    if lefty.size == 0:
+      self.polyfit_found = False
+      self.left_fit = None
+      self.right_fit = None
+      return self.polyfit_found, self.left_fit, self.right_fit
+    else: self.polyfit_found = True
+
+    # Fit a second order polynomial curve to the pixel coordinates for
+    # the left and right lane lines   
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2) 
 
@@ -582,7 +598,7 @@ class Lane:
       ax3.set_title("Detected Lane Lines with Sliding Windows")
       plt.show()        
              
-    return self.left_fit, self.right_fit
+    return self.polyfit_found, self.left_fit, self.right_fit
  
   def get_line_markings(self, frame=None, plot=True, simplify_thresholding=True):
     """
@@ -612,7 +628,7 @@ class Lane:
       #print("Simplified thresholding!")
       self.lane_line_markings = sxbinary
       if plot==True:
-        cv2.imshow("Threshold Image", self.lane_line_markings)
+        cv2.imwrite('./src/line_follower/line_follower/threshold_image.jpeg', self.lane_line_markings)
       return self.lane_line_markings
   
     # 1s will be in the cells with the highest Sobel derivative values
@@ -653,7 +669,8 @@ class Lane:
     
 
     if plot==True:
-      cv2.imshow("Threshold Image", self.lane_line_markings)
+      cv2.imwrite('./src/line_follower/line_follower/threshold_image.jpeg', self.lane_line_markings)
+
 
     return self.lane_line_markings
          
@@ -750,7 +767,7 @@ class Lane:
       warped_copy = self.warped_frame.copy()
       warped_plot = cv2.polylines(warped_copy, np.int32([
                     self.desired_roi_points]), True, (147,20,255), 3)
-      cv2.imwrite('./src/line_follower/scripts/camera_image_bev.jpeg', warped_plot)
+      cv2.imwrite('./src/line_follower/line_follower/bev_image.jpeg', warped_plot)
 
 
 
