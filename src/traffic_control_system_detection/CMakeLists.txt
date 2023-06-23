@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(sign_detection)
+project(traffic_control_system_detection)
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)
@@ -14,6 +14,7 @@ set(script_files
   "scripts/image_processor_only_opencv.py"
   "scripts/publishing_usbimg.py"
   "scripts/listener_opencv.py"
+  "scripts/traffic_light.py"
 )
 
 # Install the Python script
