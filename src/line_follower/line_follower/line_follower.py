@@ -1,57 +1,63 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-# ROS dependancies
-import rospy
+import rclpy
+from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
-from std_msgs.msg import UInt8
+from std_msgs.msg import UInt8, UInt16MultiArray
 from sensor_msgs.msg import Image as ROS_Image
-import time
-from std_msgs.msg import UInt16MultiArray
+from cv_bridge import CvBridge
 
 # Python dependancies
 import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
-import edge_detection as edge # Handles the detection of lane lines
+import line_follower.edge_detection as edge # Handles the detection of lane lines
 from cv_bridge import CvBridge # For converting ROS image message to jpg
 import matplotlib.pyplot as plt # Used for plotting and error checking
 
-
-# Local dependancies
-
 # Parameters
-max_steering_angle = 0.4692 # [rad]
-constant_thrust = 100 # [rpm]
-kp = 0.05  # Proportional gain constant
+MAX_STEERING_ANGLE = 0.4692  # [rad]
+CONSTANT_THRUST = float(100)  # [rpm]
+KP = 0.05  # Proportional gain constant
 
-class Line_Follower():
+class LineFollower(Node):
     def __init__(self):
-
-        rospy.init_node('line_follower_node')
+        super().__init__('line_follower_node')
 
         # Logic variables
         self.emergency_stop = False
         self.shutdowned = False
 
-        # define messages
-        self.ackMsg = AckermannDriveStamped()
+        # Define messages
+        self.ack_msg = AckermannDriveStamped()
 
-        # init Subcriber
-        rospy.Subscriber('/joy', UInt16MultiArray, self.emergency_shutdown_callback) 
-        rospy.Subscriber('/camera/color/image_raw', ROS_Image, self.cam_callback)
+        # Initialize subscribers
+        self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
+        self.camera_sub = self.create_subscription(ROS_Image, '/camera/color/image_raw', self.cam_callback, 10)
 
-        # init publisher
-        self.ackermann_pub = rospy.Publisher('/ackermann_cmd', AckermannDriveStamped, queue_size=1) 
+        # Initialize publisher
+        self.ackermann_pub = self.create_publisher(AckermannDriveStamped, '/ackermann_cmd', 10)
 
-        # init hook (Shut down procedure)
-        rospy.on_shutdown(self.hook)
+        # Initialize CvBridge
+        self.bridge = CvBridge()
 
-    def emergency_shutdown_callback(self, msg):
-        if self.joy_msg.buttons == 2:
-                emergency_stop = True
-                rospy.signal_shutdown('Killswitch activated!')
-
+    def emergency_shutdown_callback(self, joy_msg):
+        if joy_msg.buttons == 2:
+            self.emergency_stop = True
+            self.get_logger().info('Killswitch activated!')
+            self.destroy_node()
 
     def cam_callback(self, col_img_raw):
+        # Return if emergency stop activated
+        if self.emergency_stop:
+            return
+
+        # Convert the ROS image message to OpenCV format
+        cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+
+        # Process the image
+        self.process_image(cv_image)
+
+    def process_image(self, cv_image):
         # Return if emergncy stop activated
         if self.emergency_stop == True:
             return
@@ -61,13 +67,13 @@ class Line_Follower():
         #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
         
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/scripts/frame0001.jpg')
+        cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
 
         # Test if image is converted to jpeg
-        #cv2.imwrite('./src/line_follower/scripts/camera_image.jpeg', cv_image)
+        #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
 
         # Crop image by half
-        cv_image = crop_image(cv_image)
+        cv_image = self.crop_image(cv_image)
         #cv2.imwrite('./src/line_follower/scripts/camera_image.jpeg', cv_image)
 
         # Lane instance 
@@ -92,36 +98,52 @@ class Line_Follower():
         lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
 
         center_offset = lane_obj.calculate_car_position(print_to_terminal=True)
-        #center_offset = -10
-        print("Center Offset:", center_offset)
 
         # Calculate steering angle (P-controller)
-        steering_angle = self.calculate_steering_angle(center_offset, max_steering_angle)
+        steering_angle = self.calculate_steering_angle(center_offset, MAX_STEERING_ANGLE)
 
         # Publish Ackermann message
         self.send_ackermann(steering_angle)
 
-    def calculate_steering_angle(self, center_offset, max_steering_angle):
+    def calculate_steering_angle(self, center_offset, MAX_STEERING_ANGLE):
         error = 0 - center_offset  # Desired offset is zero
-        control_signal = kp * error
-        limited_control_signal = max(min(control_signal, max_steering_angle), -max_steering_angle)
+        control_signal = KP * error
+        limited_control_signal = np.clip(control_signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
         return limited_control_signal
 
-    def send_ackermann(self,steering_angle, thrust = constant_thrust):
-        self.ackMsg.header.stamp = rospy.Time.now()
-        self.ackMsg.drive.steering_angle = steering_angle
-        self.ackMsg.drive.speed = thrust
-        self.ackermann_pub.publish(self.ackMsg)
+    def send_ackermann(self, steering_angle):
+        ack_msg = AckermannDriveStamped()
+        ack_msg.header.stamp = self.get_clock().now().to_msg()
+        ack_msg.drive.steering_angle = steering_angle
+        ack_msg.drive.speed = CONSTANT_THRUST
+        self.ackermann_pub.publish(ack_msg)
 
-    def hook(self):                 # When node shuts down send 0 thrust and steering for 1 second
-        print("Initiate shutdown!")
+    def hook(self):
+        self.get_logger().info('Initiate shutdown!')
         self.shutdowned = True
-        t0 = time.time()
+        t0 = self.get_clock().now().to_msg().sec
         t_close = 1
 
-        while (time.time() - t0) < t_close: 
-            self.send_ackermann(0,0)
+        while (self.get_clock().now().to_msg().sec - t0) < t_close:
+            self.send_ackermann(0)
+            
+    def crop_image(self, image):
+        if image is None:
+            print("Failed to load the image.")
+            return None
 
+        # Get the dimensions of the image
+        height, width = image.shape[:2]
+
+        # Define the cropping parameters
+        top_crop = 320
+        bottom_crop = 150
+
+        # Crop the image
+        cropped_image = image[top_crop:height - bottom_crop, :]
+
+        return cropped_image
+    
 class Lane:
   """
   Represents a lane on a road.
@@ -226,7 +248,7 @@ class Lane:
       center_lane)) * self.XM_PER_PIX * 100
  
     if print_to_terminal == True:
-      print(str(center_offset) + 'cm')
+      print('Center offset: ' + str(center_offset) + 'cm')
              
     self.center_offset = center_offset
        
@@ -751,14 +773,12 @@ def crop_image(image):
 
   return cropped_image
 
-def main():
-    node = Line_Follower()
-    print("Line follower node initialized")
-
-    try:
-        rospy.spin()
-    except KeyboardInterrupt:
-        print("Shutting down")
+def main(args=None):
+    rclpy.init(args=args)
+    node = LineFollower()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
