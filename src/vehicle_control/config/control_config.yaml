@@ -27,6 +27,7 @@ vehicle_control:
     servo_min: 0.15
     speed_max: 23250.0
     speed_min: -23250.0
+    
     # From mxck
     # servo value reaches from 0 to 1 (/commands/servo/position)
     # select the min and max value so that the steering does not block
@@ -53,15 +54,10 @@ vehicle_control:
     servo_rad_mid: 0
     servo_rad_max: 0.442
 
-    # Maximum speed m/s
-    speed_min: -2.0
-    speed_mid: 0
-    speed_max: 2.5
-
     # Similar to real vehicles, carkits cannot drive infinitely slow. 
     # That is why we set a minimum starting speed.
     # True sensorless commutation is possible only with motor speeds of 500-1000 rpm and up.
-    speed_clip: 0.2 # the carkit starts with +/- ... m/s 
+    speed_clip: 0.1 # the carkit starts with +/- ... m/s 
 
     # Manual control
     rc_speed_axis: 1

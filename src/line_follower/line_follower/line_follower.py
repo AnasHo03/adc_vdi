@@ -2,7 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
-from ackermann_msgs.msg import AckermannDriveStamped
+from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import UInt8, UInt16MultiArray
 from sensor_msgs.msg import Image as ROS_Image
 from cv_bridge import CvBridge
@@ -15,8 +15,8 @@ from cv_bridge import CvBridge # For converting ROS image message to jpg
 import matplotlib.pyplot as plt # Used for plotting and error checking
 
 # Parameters
-MAX_STEERING_ANGLE = 0.4692  # [rad]
-CONSTANT_THRUST = float(100)  # [rpm]
+MAX_STEERING_ANGLE = 0.442  # [rad]
+CONSTANT_THRUST = float(0.5)  # [0 to 2.5]
 KP = 0.05  # Proportional gain constant
 
 class LineFollower(Node):
@@ -28,14 +28,14 @@ class LineFollower(Node):
         self.shutdowned = False
 
         # Define messages
-        self.ack_msg = AckermannDriveStamped()
+        self.ack_msg = AckermannDrive()
 
         # Initialize subscribers
         self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
-        self.camera_sub = self.create_subscription(ROS_Image, '/camera/color/image_raw', self.cam_callback, 10)
+        self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
 
         # Initialize publisher
-        self.ackermann_pub = self.create_publisher(AckermannDriveStamped, '/ackermann_cmd', 10)
+        self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
 
         # Initialize CvBridge
         self.bridge = CvBridge()
@@ -62,7 +62,7 @@ class LineFollower(Node):
         #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
         
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/line_follower/frame0097.jpg')
+        cv_image = cv2.imread('./src/line_follower/line_follower/frame0001.jpg')
 
         # Test if image is converted to jpeg
         #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
@@ -113,17 +113,18 @@ class LineFollower(Node):
         return limited_control_signal
 
     def send_ackermann(self, steering_angle):
-        ack_msg = AckermannDriveStamped()
-        ack_msg.header.stamp = self.get_clock().now().to_msg()
-        ack_msg.drive.steering_angle = steering_angle
-        ack_msg.drive.speed = CONSTANT_THRUST
+        ack_msg = AckermannDrive()
+        ack_msg.steering_angle = 0.0
+        ack_msg.steering_angle_velocity = 0.0
+        ack_msg.speed = 0.1
+        ack_msg.acceleration = 0.0
+        ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
 
     def send_ackermann_halt(self):
-        ack_msg = AckermannDriveStamped()
-        ack_msg.header.stamp = self.get_clock().now().to_msg()
-        ack_msg.drive.steering_angle = 0.0
-        ack_msg.drive.speed = 0.0
+        ack_msg = AckermannDrive()
+        ack_msg.steering_angle = 0.0
+        ack_msg.speed = 0.0
         self.ackermann_pub.publish(ack_msg)
 
     def hook(self):
