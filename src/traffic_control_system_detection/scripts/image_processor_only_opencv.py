@@ -7,7 +7,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
-from std_msgs.msg import String
+from team_interfaces.msg import Signs
 import os
 from ament_index_python.packages import get_package_share_directory
 
@@ -21,8 +21,13 @@ class ImageProcessor(Node):
         model_path = os.path.join(get_package_share_directory('sign_detection'), 'model_files', 'best.onnx')
         self.model = cv2.dnn.readNetFromONNX(model_path)    #model = cuda_dnn.readNetFromONNX(model_path) #*1
         self.subscription = self.create_subscription(CompressedImage,'/zed/zed_node/left/image_rect_color/compressed',self.process_image,10)
-        self.publisher = self.create_publisher(String,'detections_topic',10)
+        self.publisher = self.create_publisher(Signs,'detected_signs',10)
         self.cv_bridge = CvBridge()
+        self.cross_parking = False
+        self.pit_in = False
+        self.pit_out = False
+        self.overtaking = False
+
 
     def process_image(self, msg):
         # Convert ROS Image message to OpenCV image
@@ -61,15 +66,42 @@ class ImageProcessor(Node):
 
 
         # Publish the detections as ROS String message
+        result_msg = Signs()
+        max_class_id = 6
         if scores:
             max_score_index = np.argmax(scores)
-            max_score = scores[max_score_index]
-            max_box = boxes[max_score_index]
+            #max_score = scores[max_score_index]
+            #max_box = boxes[max_score_index]
             max_class_id = class_ids[max_score_index]
+            result_msg.sign_detected = True
+        else:
+            result_msg.sign_detected = False
 
-            result_msg = String()
-            result_msg.data = f"Max Score: {max_score}\nBounding Box: {max_box}\nClass ID: {max_class_id}"
-            self.publisher.publish(result_msg)
+        
+        if max_class_id == 0:
+            self.cross_parking = True
+        elif max_class_id == 1:
+            self.overtaking = True
+        elif max_class_id == 2:
+            self.overtaking = False
+        elif max_class_id == 3:
+            self.cross_parking = False
+        elif max_class_id == 4:
+            self.pit_in = True
+            self.pit_out = False
+        elif max_class_id == 5:
+            self.pit_out = True
+            self.pit_in = False
+                
+        result_msg.cross_parking = self.cross_parking
+        result_msg.overtaking = self.overtaking
+        result_msg.pit_in = self.pit_in
+        result_msg.pit_out = self.pit_out
+
+        
+        self.publisher.publish(result_msg)
+
+            
 
 
 

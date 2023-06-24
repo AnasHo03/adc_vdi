@@ -13,7 +13,8 @@ find_package(std_msgs REQUIRED)
 set(msg_files
   "msg/Car.msg"
   "msg/Lane.msg"
-  "msg/traffic_control_systems.msg"
+  "msg/Signs.msg"
+  "msg/Trafficlight.msg"
   DEPENDENCIES builtin_interfaces std_msgs
 )
 
