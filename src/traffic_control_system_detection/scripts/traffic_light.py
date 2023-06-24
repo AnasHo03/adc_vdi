@@ -16,7 +16,7 @@ import rclpy
 from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage
-from team_interfaces.msg import Signs
+from team_interfaces.msg import traffic_control_systems
 
 
 #-----------------------------------------------------------
@@ -28,7 +28,7 @@ class ImageProcessor(Node):
     def __init__(self):
         super().__init__('image_subscriber')
         self.subscription = self.create_subscription(CompressedImage, '/zed/zed_node/left/image_rect_color/compressed', self.image_callback, 10)
-        self.publisher = self.create_publisher(Signs, 'traffic_light', 10)
+        self.publisher = self.create_publisher(traffic_control_systems, 'traffic_light', 10)
         self.bridge = CvBridge()
         self.decision = False
 
@@ -42,7 +42,7 @@ class ImageProcessor(Node):
             self.decision = self.detectTrafficLight(cv_image, self.decision)
 
             
-            traffic_lights_msg = Signs()
+            traffic_lights_msg = traffic_control_systems()
             traffic_lights_msg.traffic_light = self.decision
             self.publisher.publish(traffic_lights_msg)
 
