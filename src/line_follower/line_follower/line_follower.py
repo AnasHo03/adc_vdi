@@ -83,14 +83,14 @@ class LineFollower(Node):
         #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
         
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/line_follower/frame0001.jpg')
+        cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
 
         # Test if image is converted to jpeg
         #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
 
         # Crop image by half
         cv_image = self.crop_image(cv_image)
-        #cv2.imwrite('./src/line_follower/scripts/camera_image.jpeg', cv_image)
+        #cv2.imwrite('./src/line_follower/line_follower/crop_image.jpeg', cv_image)
 
         # Lane instance 
         lane_obj = Lane(cv_image)
@@ -108,7 +108,7 @@ class LineFollower(Node):
 
         # Find lane line pixels using the sliding window method 
         polyfit_found, left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-        plot=False, synthesizeRightLane=True)
+        plot=False, synthesizeRightLane=False)
 
         # Return if no polyfits are found
         if polyfit_found != True:
@@ -116,9 +116,11 @@ class LineFollower(Node):
           print("No lines detected. Move the car!")
           return 
 
-        # Fill in the lane line
-        lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=False, synthesizeRightLane=True)
+        # Fill in the lane line (visualization)
+        # lane_obj.get_lane_line_previous_window(left_fit, right_fit, plot=True, synthesizeRightLane=False)
+        # frame_with_lane_lines = lane_obj.overlay_lane_lines(plot=True)
 
+        # Calculate center offset
         center_offset = lane_obj.calculate_car_position(print_to_terminal=True)
 
         # Calculate steering angle (P-controller)
@@ -221,7 +223,7 @@ class Lane:
     self.no_of_windows = 10
 
     # Adjusted fractions to floats. Otherwise zero. (Hypnos)
-    self.margin = int(0.08333 * width)  # Window width is +/- margin 
+    self.margin = int(0.05333 * width)  # Window width is +/- margin 
     self.minpix = int(0.04166 * width)  # Min no. of pixels to recenter window
 
     # Best fit polynomial lines for left line and right line of the lane
@@ -289,11 +291,17 @@ class Lane:
     # Fit polynomial curves to the real world environment
     left_fit_cr = np.polyfit(self.lefty * self.YM_PER_PIX, self.leftx * (
       self.XM_PER_PIX), 2)
-    ### ADDED CODE: syntesize right lane from left ###
+
+    # Force synthesize right lane
     if synthesizeRightLane==True:
       self.righty = self.lefty
       self.rightx = self.leftx + 400
-    ### END ADDED CODE ###
+    
+    # Automatic right lane syntehsis in case right is empty
+    if self.righty.size == 0:
+      self.righty = self.lefty
+      self.rightx = self.leftx + 400
+
     right_fit_cr = np.polyfit(self.righty * self.YM_PER_PIX, self.rightx * (
       self.XM_PER_PIX), 2)
              
@@ -412,18 +420,23 @@ class Lane:
     self.leftx = leftx
     self.rightx = rightx
     self.lefty = lefty
-    self.righty = righty        
-    ### ADDED CODE: syntesize right lane from left ###
-    if synthesizeRightLane == True:
-      righty = lefty
-      rightx = leftx + 400
-    ### END ADDED CODE ###
+    self.righty = righty
 
-    # Fit a second order polynomial curve to each lane line
-    left_fit = np.polyfit(lefty, leftx, 2)
-    right_fit = np.polyfit(righty, rightx, 2)
-    self.left_fit = left_fit
-    self.right_fit = right_fit
+    # Force synthesize right lane
+    if synthesizeRightLane == True:
+      self.righty = self.lefty
+      self.rightx = self.leftx + 400
+    
+    # Automatic right lane syntehsis in case right is empty
+    if self.righty.size == 0:
+      self.righty = self.lefty
+      self.rightx = self.leftx + 400
+
+    # # Fit a second order polynomial curve to each lane line
+    # left_fit = np.polyfit(lefty, leftx, 2)
+    # right_fit = np.polyfit(righty, rightx, 2)
+    # self.left_fit = left_fit
+    # self.right_fit = right_fit
          
     # Create the x and y values to plot on the image
     ploty = np.linspace(
@@ -476,15 +489,19 @@ class Lane:
       ax1.set_title("Original Frame")  
       ax2.set_title("Warped Frame")
       ax3.set_title("Warped Frame With Search Window")
-      plt.show()
+      # Turn off interactive mode
+      plt.ioff()
+      # Save the plot as an image file
+      plt.savefig('./src/line_follower/line_follower/lane_line_image.png')
              
   def get_lane_line_indices_sliding_windows(self, plot=False, synthesizeRightLane=True):
     """
     Get the indices of the lane line pixels using the 
     sliding windows technique.
          
-    :param: plot Show plot or not
-    :return: Best fit lines for the left and right lines of the current lane 
+    :param: plot write plot or not
+    :return: Best fit lines for the left and right lines of the current lane
+    :return: If a poly fit was found
     """
     # Sliding window width is +/- margin
     margin = self.margin
@@ -556,11 +573,6 @@ class Lane:
     lefty = nonzeroy[left_lane_inds] 
     rightx = nonzerox[right_lane_inds] 
     righty = nonzeroy[right_lane_inds]
-  
-    # Syntesize right lane from left (TODO: build logic to synthesize right if not found)
-    if(synthesizeRightLane == synthesizeRightLane):
-      righty = lefty
-      rightx = leftx + 400
 
     # Return if no points were found
     if lefty.size == 0:
@@ -570,6 +582,17 @@ class Lane:
       return self.polyfit_found, self.left_fit, self.right_fit
     else: self.polyfit_found = True
 
+    # Force synthesize right lane
+    if synthesizeRightLane == True:
+      righty = lefty
+      rightx = leftx + 400
+
+    # Automatic right lane syntehsis in case right is empty
+    if righty.size == 0:
+      print('Only left lane detected!')
+      righty = lefty
+      rightx = leftx + 400
+    
     # Fit a second order polynomial curve to the pixel coordinates for
     # the left and right lane lines   
     left_fit = np.polyfit(lefty, leftx, 2)
@@ -609,7 +632,10 @@ class Lane:
       ax1.set_title("Original Frame")  
       ax2.set_title("Warped Frame with Sliding Windows")
       ax3.set_title("Detected Lane Lines with Sliding Windows")
-      plt.show()        
+      # Turn off interactive mode
+      plt.ioff()
+      # Save the plot as an image file
+      plt.savefig('./src/line_follower/line_follower/slidingwin_polyfit_image.png')     
              
     return self.polyfit_found, self.left_fit, self.right_fit
  
@@ -740,7 +766,10 @@ class Lane:
       ax2.imshow(cv2.cvtColor(result, cv2.COLOR_BGR2RGB))
       ax1.set_title("Original Frame")  
       ax2.set_title("Original Frame With Lane Overlay")
-      plt.show()   
+      # Turn off interactive mode
+      plt.ioff()
+      # Save the plot as an image file
+      plt.savefig('./src/line_follower/line_follower/lane_image.png')    
  
     return result           
      
@@ -772,17 +801,12 @@ class Lane:
       self.warped_frame, 127, 255, cv2.THRESH_BINARY)           
     self.warped_frame = binary_warped
 
-    ### ADDED CODE: write image for diagnosis ###
-    #cv2.imwrite("bev.jpg", self.warped_frame)
-
-    # Display the perspective transformed (i.e. warped) frame
+    # Write the perspective transformed (i.e. warped) frame
     if plot == True:
       warped_copy = self.warped_frame.copy()
       warped_plot = cv2.polylines(warped_copy, np.int32([
                     self.desired_roi_points]), True, (147,20,255), 3)
       cv2.imwrite('./src/line_follower/line_follower/bev_image.jpeg', warped_plot)
-
-
 
     return self.warped_frame        
 
