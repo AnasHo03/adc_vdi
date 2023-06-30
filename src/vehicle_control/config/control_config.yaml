@@ -25,8 +25,8 @@ vehicle_control:
     position_min: 0.0
     servo_max: 0.85
     servo_min: 0.15
-    speed_max: 23250.0
-    speed_min: -23250.0
+    speed_max: 25000.0
+    speed_min: -25000.0
     
     # From mxck
     # servo value reaches from 0 to 1 (/commands/servo/position)
@@ -45,7 +45,7 @@ vehicle_control:
     # ros2 topic pub -r 5 /commands/motor/speed {erpm} e.g. erpm = 4000
     # from this the speed is calculated speed (m/s) = distance (m) / time (s)
     # calculate speed_to_erpm_gain = erpm / speed
-    speed_to_erpm_gain: 3786
+    speed_to_erpm_gain: 10000 ## 3786 Original (TODO: measure a new erpm using new vesc config)
 
     # Servo
     # the maximum steering angle is determined from the measured left and right radius and the wheelbase
@@ -57,7 +57,8 @@ vehicle_control:
     # Similar to real vehicles, carkits cannot drive infinitely slow. 
     # That is why we set a minimum starting speed.
     # True sensorless commutation is possible only with motor speeds of 500-1000 rpm and up.
-    speed_clip: 0.1 # the carkit starts with +/- ... m/s 
+    speed_clip: 0.2 # the carkit starts with +/- ... m/s 
+    
 
     # Manual control
     rc_speed_axis: 1
