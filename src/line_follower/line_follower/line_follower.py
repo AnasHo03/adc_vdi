@@ -82,31 +82,31 @@ class LineFollower(Node):
         #cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
 
         # Test if image is converted to jpeg
-        #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
+        cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
 
         # Crop image by half
         cv_image = self.crop_image(cv_image)
-        #cv2.imwrite('./src/line_follower/line_follower/crop_image.jpeg', cv_image)
+        cv2.imwrite('./src/line_follower/line_follower/crop_image.jpeg', cv_image)
 
         # Lane instance 
         lane_obj = Lane(cv_image)
 
         # Perform thresholding to isolate lane lines
-        lane_line_markings = lane_obj.get_line_markings(plot=False, simplify_thresholding=True)
+        lane_line_markings = lane_obj.get_line_markings(plot=True, simplify_thresholding=True)
 
         # Perform the perspective transform to generate a bird's eye view
         # If Plot == True, show image with new region of interest
-        warped_frame = lane_obj.perspective_transform(plot=False)
+        warped_frame = lane_obj.perspective_transform(plot=True)
 
         # Generate the image histogram to serve as a starting point
         # for finding lane line pixels
-        histogram = lane_obj.calculate_histogram(plot=False) 
+        histogram = lane_obj.calculate_histogram(plot=True) 
 
         # Find lane line pixels using the sliding window method 
         polyfit_found, left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-        plot=False, synthesizeRightLane=False)
+        plot=True, synthesizeRightLane=False)
 
-        # Return if no polyfits are found
+        # Return if no polyfits are foundFalse
         if polyfit_found != True:
           self.send_ackermann_halt()
           print("No lines detected. Move the car!")
@@ -155,8 +155,8 @@ class LineFollower(Node):
         height, width = image.shape[:2]
 
         # Define the cropping parameters
-        top_crop = 320
-        bottom_crop = 150
+        top_crop = 200
+        bottom_crop = 300
 
         # Crop the image
         cropped_image = image[top_crop:height - bottom_crop, :]
