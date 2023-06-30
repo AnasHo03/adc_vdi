@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt # Used for plotting and error checking
 # Parameters
 MAX_STEERING_ANGLE = 0.442  # [rad]
 CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
-KP = 0.05  # Proportional gain constant
+KP = 0.005  # Proportional gain constant
 
 
 class LineFollower(Node):
@@ -80,35 +80,39 @@ class LineFollower(Node):
 
     def process_image(self, cv_image):        
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/line_follower/test_image460.jpg')
+        #cv_image = cv2.imread('./src/frame_samples_zed/43.jpeg')
         
         ## Image stream writer
-        # name = './src/line_follower/line_follower/test_image' + str(self.counter) + '.jpeg'
+        #name = './src/line_follower/line_follower/test_image' + str(self.counter) + '.jpeg'
         # # Test if image is converted to jpeg
         # if self.counter % 20 == 0:
         #   cv2.imwrite(name, cv_image)
         # self.counter += 1
         # Crop image by half
-        cv_image = self.crop_image(cv_image)
-        cv2.imwrite('./src/line_follower/line_follower/crop_image.jpeg', cv_image)
+        #cv_image = self.crop_image(cv_image)
+        #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
 
         # Lane instance 
         lane_obj = Lane(cv_image)
 
         # Perform thresholding to isolate lane lines
-        lane_line_markings = lane_obj.get_line_markings(plot=True, simplify_thresholding=True)
+        lane_line_markings = lane_obj.get_line_markings(plot=False, simplify_thresholding=True)
 
+
+        # Plot the region of interest on the image (visualization)
+        lane_obj.plot_roi(plot=False)
+ 
         # Perform the perspective transform to generate a bird's eye view
         # If Plot == True, show image with new region of interest
-        warped_frame = lane_obj.perspective_transform(plot=True)
+        warped_frame = lane_obj.perspective_transform(plot=False)
 
         # Generate the image histogram to serve as a starting point
         # for finding lane line pixels
-        histogram = lane_obj.calculate_histogram(plot=True) 
+        histogram = lane_obj.calculate_histogram(plot=False) 
 
         # Find lane line pixels using the sliding window method 
         polyfit_found, left_fit, right_fit = lane_obj.get_lane_line_indices_sliding_windows(
-        plot=True, synthesizeRightLane=False)
+        plot=False, synthesizeRightLane=True)
 
         # Return if no polyfits are foundFalse
         if polyfit_found != True:
@@ -198,10 +202,10 @@ class Lane:
     # Four corners of the trapezoid-shaped region of interest
     # You need to find these corners manually.
     self.roi_points = np.float32([
-      (500,50), # Top-left corner
-      (110, 180), # Bottom-left corner            
-      (1280,180), # Bottom-right corner
-      (880,50) # Top-right corner
+      (390,225), # Top-left corner
+      (100,300), # Bottom-left corner            
+      (700,300), # Bottom-right corner
+      (525,225) # Top-right corner
     ])
          
     # The desired corner locations  of the region of interest
@@ -241,7 +245,7 @@ class Lane:
          
     # Pixel parameters for x and y dimensions
     self.YM_PER_PIX = 10.0 / 1000 # meters per pixel in y dimension
-    self.XM_PER_PIX = 3.7 / 781 # meters per pixel in x dimension
+    self.XM_PER_PIX = 0.74 / 420 # meters per pixel in x dimension
          
     # Radii of curvature and offset
     self.left_curvem = None
@@ -808,24 +812,25 @@ class Lane:
                     self.desired_roi_points]), True, (147,20,255), 3)
       cv2.imwrite('./src/line_follower/line_follower/bev_image.jpeg', warped_plot)
 
-    return self.warped_frame        
+    return self.warped_frame
 
-def crop_image(image):
-  if image is None:
-      print("Failed to load the image.")
-      return None
+  def plot_roi(self, frame=None, plot=False):
+    """
+    Plot the region of interest on an image.
+    :param: frame The current image frame
+    :param: plot Plot the roi image if True
+    """
+    if plot == False:
+      return
+            
+    if frame is None:
+      frame = self.orig_frame.copy()
 
-  # Get the dimensions of the image
-  height, width = image.shape[:2]
-
-  # Define the cropping parameters
-  top_crop = 320
-  bottom_crop = 150
-
-  # Crop the image
-  cropped_image = image[top_crop:height - bottom_crop, :]
-
-  return cropped_image
+    # Overlay trapezoid on the frame
+    this_image = cv2.polylines(frame, np.int32([
+      self.roi_points]), True, (147,20,255), 3)
+    cv2.imwrite('./src/line_follower/line_follower/roi_image.jpeg', this_image)
+      
 
 def main(args=None):
     rclpy.init(args=args)
