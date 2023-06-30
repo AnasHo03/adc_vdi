@@ -21,10 +21,11 @@ MAX_STEERING_ANGLE = 0.442  # [rad]
 CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
 KP = 0.05  # Proportional gain constant
 
+
 class LineFollower(Node):
     def __init__(self):
         super().__init__('line_follower_node')
-
+        self.counter = 1
         # Logic variables
         self.emergency_stop = False
         self.destroyed = False
@@ -79,11 +80,14 @@ class LineFollower(Node):
 
     def process_image(self, cv_image):        
         # Use sample image for testing
-        #cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
-
-        # Test if image is converted to jpeg
-        cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
-
+        cv_image = cv2.imread('./src/line_follower/line_follower/test_image460.jpg')
+        
+        ## Image stream writer
+        # name = './src/line_follower/line_follower/test_image' + str(self.counter) + '.jpeg'
+        # # Test if image is converted to jpeg
+        # if self.counter % 20 == 0:
+        #   cv2.imwrite(name, cv_image)
+        # self.counter += 1
         # Crop image by half
         cv_image = self.crop_image(cv_image)
         cv2.imwrite('./src/line_follower/line_follower/crop_image.jpeg', cv_image)
@@ -159,7 +163,7 @@ class LineFollower(Node):
         bottom_crop = 300
 
         # Crop the image
-        cropped_image = image[top_crop:height - bottom_crop, :]
+        cropped_image = image[top_crop:bottom_crop, :]
 
         return cropped_image
     
