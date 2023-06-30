@@ -77,13 +77,9 @@ class LineFollower(Node):
         # Process the image
         self.process_image(cv_image)
 
-    def process_image(self, cv_image):
-        # Convert the ROS image message to OpenCV format
-        bridge = CvBridge()         # Instantiate CvBridge
-        #cv_image = bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
-        
+    def process_image(self, cv_image):        
         # Use sample image for testing
-        cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
+        #cv_image = cv2.imread('./src/line_follower/line_follower/frame0084.jpg')
 
         # Test if image is converted to jpeg
         #cv2.imwrite('./src/line_follower/line_follower/test_image.jpeg', cv_image)
