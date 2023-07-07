@@ -57,8 +57,9 @@ class LineFollower(Node):
 
 
     def lane_callback(self, msg):
-        self.calculate_steering_angle(msg.center_offset)
-           
+        steering_angle = self.calculate_steering_angle(msg.center_offset)
+        self.send_ackermann(steering_angle)
+
     def calculate_steering_angle(self, center_offset):
         error = 0 - center_offset  # Desired offset is zero
         control_signal = KP * error
