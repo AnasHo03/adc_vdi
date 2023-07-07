@@ -12,7 +12,60 @@ from team_interfaces.msg import Lane
 import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
 from cv_bridge import CvBridge # For converting ROS image message to jpg
+import math
 
+## camera output params
+width = 896
+height = 512
+scale = 1
+
+## BEV params
+top_roi = 0.4238 # 0-1 (0 is top)
+bottom_roi = 0.5859 # 0-1 (0 is top)
+width_use = 1 # 0-1
+height_multiplier = 4.5
+skew_level = 0.885 # 0-1
+
+## filter params
+thresh = 138 # 0-255
+gaussian = 9 # must be odd number
+adaptive_block_size_factor = 11 # must be odd number
+adaptive_const = 2
+adaptive_block_size = int(adaptive_block_size_factor*scale)
+if adaptive_block_size % 2 == 0:
+	adaptive_block_size += 1
+
+## line detect params
+search_step = int(2) # px
+search_offset = int(7)
+left_search_dist = int(62 + search_offset)
+right_search_dist = int(62 + search_offset)
+start_search_height = int(370)
+height_step = int(4)
+radius = 20 # px
+angle_sweep = 200 # deg
+sweep_step = math.radians(5)
+max_points = 20
+
+start_angle = math.radians(90+angle_sweep/2)
+stop_angle = math.radians(90-angle_sweep/2)
+
+## process lane params
+lane_distance = int(44)
+
+roi_in = np.float32(np.floor([
+	((1-width_use)*width*scale,0), # Top-left corner
+	((1-width_use)*width*scale,(bottom_roi-top_roi)*height*scale), # Bottom-left corner            
+	(width_use*width*scale,(bottom_roi-top_roi)*height*scale), # Bottom-right corner
+	(width_use*width*scale,0) # Top-right corner
+]))
+roi_out = np.float32(np.floor([
+	((1-width_use)*width*scale,0), # Top-left corner
+	(width*skew_level*0.5*width_use*scale,(bottom_roi-top_roi)*height*height_multiplier*scale), # Bottom-left corner            
+	(width*(1-skew_level*0.5*width_use)*scale,(bottom_roi-top_roi)*height*height_multiplier*scale), # Bottom-right corner
+	(width_use*width*scale,0) # Top-right corner
+]))
+bird_transform_matrix = cv2.getPerspectiveTransform(roi_in,roi_out)
 
 class LaneRecognition(Node):
     def __init__(self):
@@ -23,62 +76,45 @@ class LaneRecognition(Node):
         self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
         # Initialize CvBridge
         self.bridge = CvBridge()
-        
-        ## camera output params
-        self.width = 896
-        self.height = 512
-        scale = 1
-        ## BEV params
-        top_roi = .5138 # 0-1 (0 is top)
-        bottom_roi = .75 # 0-1 (0 is top)
-        width_use = 1 # 0-1
-        self.height_multiplier = 5
-        skew_level = 0.885 # 0-1
-        
-        self.roi_in = np.float32(np.floor([
-	        ((1-width_use)*self.width*scale,0), # Top-left corner
-	        ((1-width_use)*self.width*scale,(bottom_roi-top_roi)*self.height*scale), # Bottom-left corner            
-	        (width_use*self.width*scale,(bottom_roi-top_roi)*self.height*scale), # Bottom-right corner
-	        (width_use*self.width*scale,0) # Top-right corner
-        ]))
-        self.roi_out = np.float32(np.floor([
-	        ((1-width_use)*self.width*scale,0), # Top-left corner
-	        (self.width*skew_level*0.5*width_use*scale,(bottom_roi-top_roi)*self.height*self.height_multiplier*scale), # Bottom-left corner            
-	        (self.width*(1-skew_level*0.5*width_use)*scale,(bottom_roi-top_roi)*self.height*self.height_multiplier*scale), # Bottom-right corner
-	        (width_use*self.width*scale,0) # Top-right corner
-        ]))
-
         # Create publisher
         self.publisher = self.create_publisher(Lane, 'lane_topic', 10)
         
     def cam_callback(self, col_img_raw):
         lane = Lane()
         # Convert the ROS image message to OpenCV format
-        cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+        # cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+
+        # Load frame for testing
+        cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
         img_bird = self.birdy_view(cv_image)
         img_filtered = self.filter_line(img_bird)
-        left_lane, right_lane = self.detect_lane(img_filtered)
+        _, left_lane, right_lane = self.detect_lane(img_filtered)
+
         center_offset, left_detected, right_detected = self.process_lane(left_lane, right_lane)
-        
+        print("öeft", left_detected)
+        print("right", right_detected)
+        print("center offset", center_offset)
         lane.right_lane_detected = right_detected
         lane.left_lane_detected = left_detected
         lane.center_offset = center_offset
 
+
         # Extract x and y points from left_lane and right_lane
-        lane.right_lane_x_points = [point[0] for point in right_lane]
-        lane.right_lane_y_points = [point[1] for point in right_lane]
-        lane.left_lane_x_points = [point[0] for point in left_lane]
-        lane.left_lane_y_points = [point[1] for point in left_lane]
+        lane.right_lane_x_points = [float(point[0]) for point in right_lane]
+        lane.right_lane_y_points = [float(point[1]) for point in right_lane]
+        lane.left_lane_x_points = [float(point[0]) for point in left_lane]
+        lane.left_lane_y_points = [float(point[1]) for point in left_lane]
 
         lane.dashed_line_detected = False # placeholder value
 
         self.publisher.publish(lane)
 
-    def birdy_view(self,img_in):
+    ## transform image to euclidian distance
+    def birdy_view(self, img_in):
+        # ROI 
+        img_in = img_in[int(top_roi*height):int(bottom_roi*height),0:width]
         cropped_height, cropped_width, _ = img_in.shape
-        bird_transform_matrix = cv2.getPerspectiveTransform(self.roi_in,self.roi_out)
-        img_out = cv2.warpPerspective(img_in,bird_transform_matrix,(cropped_width,int(cropped_height*self.height_multiplier)),flags=(cv2.INTER_LINEAR))
-    
+        img_out = cv2.warpPerspective(img_in,bird_transform_matrix,(cropped_width,int(cropped_height*height_multiplier)),flags=(cv2.INTER_LINEAR))
         return img_out
 
     ## thresholding to get binary image
@@ -267,7 +303,7 @@ class LaneRecognition(Node):
                     break
         
         # img_out = cv2.circle(img_out, (x,y), radius = 30,color=(0, 0, 255), thickness=1)
-        return lane_points_left, lane_points_right   
+        return img_out, lane_points_left, lane_points_right
 
 ## array of points to center offset
     def process_lane(self, left, right):

@@ -15,4 +15,4 @@ float32 center_offset
 float32[] right_lane_x_points
 float32[] right_lane_y_points
 float32[] left_lane_x_points
-float32[] right_lane_y_points
+float32[] left_lane_y_points
