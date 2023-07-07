@@ -82,10 +82,10 @@ class LaneRecognition(Node):
     def cam_callback(self, col_img_raw):
         lane = Lane()
         # Convert the ROS image message to OpenCV format
-        # cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+        cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
         # Load frame for testing
-        cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
+        #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
         img_bird = self.birdy_view(cv_image)
         img_filtered = self.filter_line(img_bird)
         _, left_lane, right_lane = self.detect_lane(img_filtered)

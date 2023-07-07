@@ -10,15 +10,22 @@ from team_interfaces.msg import Lane
 
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
-# Parameters
+
+# Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
 KP = 0.005  # Proportional gain constant
 
+# Parameters filtering
+NUM_ELEMENTS_TO_AVERAGE = 5
+
 class LineFollower(Node):
     def __init__(self):
         super().__init__('line_follower_node')
-        self.counter = 1
+        
+        # Variables
+        self.offset_array = []
+
         # Logic variables
         self.emergency_stop = False
         self.destroyed = False
@@ -55,6 +62,13 @@ class LineFollower(Node):
             self.emergency_stop = True
             self.get_logger().info('Killswitch activated!')
 
+    def filter_signal(self, steering_angle):
+        self.offset_array.append(steering_angle)
+        if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
+            average = sum(self.offset_array) / len(self.offset_array)
+            self.steering_angle = [] 
+            return average
+
 
     def lane_callback(self, msg):
         steering_angle = self.calculate_steering_angle(msg.center_offset)
@@ -70,7 +84,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = CONSTANT_THRUST
+        ack_msg.speed = 0.0       #CONSTANT_THRUST
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
