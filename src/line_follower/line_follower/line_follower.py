@@ -6,18 +6,14 @@ import signal
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import UInt8, UInt16MultiArray
-from sensor_msgs.msg import Image as ROS_Image
+from team_interfaces.msg import Lane
 
 # Python dependancies
-import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
-from cv_bridge import CvBridge # For converting ROS image message to jpg
-
 # Parameters
 MAX_STEERING_ANGLE = 0.442  # [rad]
 CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
 KP = 0.005  # Proportional gain constant
-
 
 class LineFollower(Node):
     def __init__(self):
@@ -30,19 +26,13 @@ class LineFollower(Node):
 
         # Define messages
         self.ack_msg = AckermannDrive()
-
         # Initialize subscribers
         self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
-        self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
-
-        # Initialize publisher
+        self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
+        # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
-
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
-
-        # Initialize CvBridge
-        self.bridge = CvBridge()
 
     def shutdown_callback(self, signum, frame):
           if self.destroyed:
@@ -65,28 +55,11 @@ class LineFollower(Node):
             self.emergency_stop = True
             self.get_logger().info('Killswitch activated!')
 
-    def cam_callback(self, col_img_raw):
-        # Return if emergncy stop activated
-        if self.emergency_stop == True:
-            return
 
-        # Convert the ROS image message to OpenCV format
-        cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
-
-        # Process the image
-        self.process_image(cv_image)
-
-    def process_image(self, cv_image):        
-        # Calculate center offset
-        center_offset = lane_obj.calculate_car_position(print_to_terminal=True)
-
-        # Calculate steering angle (P-controller)
-        steering_angle = self.calculate_steering_angle(center_offset, MAX_STEERING_ANGLE)
-
-        # Publish Ackermann message
-        self.send_ackermann(steering_angle)
-
-    def calculate_steering_angle(self, center_offset, MAX_STEERING_ANGLE):
+    def lane_callback(self, msg):
+        self.calculate_steering_angle(msg.center_offset)
+           
+    def calculate_steering_angle(self, center_offset):
         error = 0 - center_offset  # Desired offset is zero
         control_signal = KP * error
         limited_control_signal = np.clip(control_signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
