@@ -6,7 +6,7 @@ import signal
 from rclpy.node import Node
 from std_msgs.msg import UInt8, UInt16MultiArray
 from sensor_msgs.msg import Image as ROS_Image
-from team_interfaces.msg import lane
+from team_interfaces.msg import Lane
 
 # Python dependancies
 import cv2 # Import the OpenCV library to enable computer vision
@@ -36,8 +36,8 @@ class LaneRecognition(Node):
         skew_level = 0.885 # 0-1
         
         self.roi_in = np.float32(np.floor([
-	        ((1-self.width_use)*self.width*scale,0), # Top-left corner
-	        ((1-self.width_use)*self.width*scale,(bottom_roi-top_roi)*self.height*scale), # Bottom-left corner            
+	        ((1-width_use)*self.width*scale,0), # Top-left corner
+	        ((1-width_use)*self.width*scale,(bottom_roi-top_roi)*self.height*scale), # Bottom-left corner            
 	        (width_use*self.width*scale,(bottom_roi-top_roi)*self.height*scale), # Bottom-right corner
 	        (width_use*self.width*scale,0) # Top-right corner
         ]))
@@ -49,7 +49,7 @@ class LaneRecognition(Node):
         ]))
 
         # Create publisher
-        self.publisher = selt.create_publisher(Lane, 'lane_topic', 10)
+        self.publisher = self.create_publisher(Lane, 'lane_topic', 10)
         
     def cam_callback(self, col_img_raw):
         lane = Lane()
