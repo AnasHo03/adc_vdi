@@ -70,8 +70,10 @@ bird_transform_matrix = cv2.getPerspectiveTransform(roi_in,roi_out)
 class LaneRecognition(Node):
     def __init__(self):
         super().__init__('lane_recognition_node')
-        # Logic variables
+        # Variables ariables
         self.center_offset = 0.0
+        self.img_saving_counter = 0
+        
         # Initialize subscribers
         self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
         # Initialize CvBridge
@@ -83,6 +85,14 @@ class LaneRecognition(Node):
         lane = Lane()
         # Convert the ROS image message to OpenCV format
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
+
+        # Image stream writer
+        name = './src/frame_samples_zed_troubleshoot/troubleshoot_img' + str(self.img_saving_counter) + '.jpeg'
+        
+        # Test if image is converted to jpeg
+        # if self.img_saving_counter % 10 == 0:
+        #   cv2.imwrite(name, cv_image)
+        # self.img_saving_counter += 1
 
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')

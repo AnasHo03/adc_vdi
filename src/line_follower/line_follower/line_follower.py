@@ -61,7 +61,7 @@ class LineFollower(Node):
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero (TODO: update to match camera position relative to center)
-        current_error = 0 - center_offset  
+        current_error = 0 - center_offset
         previous_error = 0 - previous_center_offset
 
         # Proportional term
@@ -74,7 +74,7 @@ class LineFollower(Node):
         # derivative_term = KD * (current_error - previous_error)
 
         # Signal (terms combined)
-        # signal = proportional_term + self.integral_term + derivative_term
+        #signal = proportional_term + self.integral_term + derivative_term
         signal = proportional_term
 
         # Clip signal
