@@ -91,9 +91,9 @@ class LaneRecognition(Node):
         _, left_lane, right_lane = self.detect_lane(img_filtered)
 
         center_offset, left_detected, right_detected = self.process_lane(left_lane, right_lane)
-        print("öeft", left_detected)
-        print("right", right_detected)
-        print("center offset", center_offset)
+        # print("left", left_detected)
+        # print("right", right_detected)
+        self.get_logger().info('center offset:' + str(center_offset))
         lane.right_lane_detected = right_detected
         lane.left_lane_detected = left_detected
         lane.center_offset = center_offset
