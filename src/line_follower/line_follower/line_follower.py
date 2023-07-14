@@ -15,6 +15,8 @@ import numpy as np # Import the NumPy scientific computing library
 MAX_STEERING_ANGLE = 0.442  # [rad]
 CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
 KP = 0.005  # Proportional gain constant
+KI = 0.0    # Integral gain
+KD = 0.0    # Derivative gain
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE = 5
@@ -29,7 +31,11 @@ class LineFollower(Node):
         # Logic variables
         self.emergency_stop = False
         self.destroyed = False
+
+        # Variables
         self.center_offset = 0.0
+        self.previous_center_offset = 0.0
+        self.integral_term = 0.0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -40,6 +46,62 @@ class LineFollower(Node):
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
+
+    def lane_callback(self, msg):
+        # Fetch current offset from message
+        self.center_offset = msg.center_offset
+
+        # Calculate steering angle with PID 
+        steering_angle = self.pid_controller(self.center_offset)
+        
+        # Update previous offset
+        self.previous_center_offset = self.center_offset
+
+        self.send_ackermann(steering_angle)
+
+    def pid_controller(self, center_offset, previous_center_offset):
+        # Desired offset is zero (TODO: update to match camera position relative to center)
+        current_error = 0 - center_offset  
+        previous_error = 0 - previous_center_offset
+
+        # Proportional term
+        proportional_term = KP * current_error
+        
+        # Integral term
+        self.integral_term += KI * current_error
+
+        # Derivative term
+        derivative_term = KD * (current_error - previous_error)
+
+        # Signal (terms combined)
+        signal = proportional_term + self.integral_term + derivative_term
+
+        # Clip signal
+        clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
+        
+        return clipped_signal
+    
+    def filter_signal(self, steering_angle):
+        self.offset_array.append(steering_angle)
+        if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
+            average = sum(self.offset_array) / len(self.offset_array)
+            self.steering_angle = [] 
+            return average
+        
+    def send_ackermann(self, steering_angle):
+        ack_msg = AckermannDrive()
+        ack_msg.steering_angle = steering_angle
+        ack_msg.steering_angle_velocity = 0.0
+        ack_msg.speed = 0.0       #CONSTANT_THRUST
+        ack_msg.acceleration = 0.0
+        ack_msg.jerk = 0.0
+        self.ackermann_pub.publish(ack_msg)
+
+    def send_ackermann_halt(self):
+        ack_msg = AckermannDrive()
+        ack_msg.steering_angle = 0.0
+        ack_msg.speed = 0.0
+        self.ackermann_pub.publish(ack_msg)
 
     def shutdown_callback(self, signum, frame):
           if self.destroyed:
@@ -55,46 +117,13 @@ class LineFollower(Node):
 
           self.node.destroy_node()    ## TODO: fix this
           self.destroyed = True
-          rclpy.shutdown()
+          rclpy.shutdown()   
 
     def emergency_shutdown_callback(self, joy_msg):
         if joy_msg.buttons == 2:
             self.emergency_stop = True
             self.get_logger().info('Killswitch activated!')
 
-    def filter_signal(self, steering_angle):
-        self.offset_array.append(steering_angle)
-        if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
-            average = sum(self.offset_array) / len(self.offset_array)
-            self.steering_angle = [] 
-            return average
-
-
-    def lane_callback(self, msg):
-        steering_angle = self.calculate_steering_angle(msg.center_offset)
-        self.send_ackermann(steering_angle)
-
-    def calculate_steering_angle(self, center_offset):
-        error = 0 - center_offset  # Desired offset is zero
-        control_signal = KP * error
-        limited_control_signal = np.clip(control_signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
-        return limited_control_signal
-
-    def send_ackermann(self, steering_angle):
-        ack_msg = AckermannDrive()
-        ack_msg.steering_angle = steering_angle
-        ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.0       #CONSTANT_THRUST
-        ack_msg.acceleration = 0.0
-        ack_msg.jerk = 0.0
-        self.ackermann_pub.publish(ack_msg)
-
-    def send_ackermann_halt(self):
-        ack_msg = AckermannDrive()
-        ack_msg.steering_angle = 0.0
-        ack_msg.speed = 0.0
-        self.ackermann_pub.publish(ack_msg)
-    
 
 def main(args=None):
     rclpy.init(args=args)
