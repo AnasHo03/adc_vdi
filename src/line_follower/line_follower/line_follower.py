@@ -13,7 +13,7 @@ import numpy as np # Import the NumPy scientific computing library
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-CONSTANT_THRUST = float(0.25)  # [0 to 2.5]
+CONSTANT_THRUST = float(0.3)  # [min is 0.3]
 KP = 0.015   # Proportional gain constant
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
@@ -94,7 +94,7 @@ class LineFollower(Node):
         
     def send_ackermann(self, steering_angle):
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = steering_angle
+        ack_msg.steering_angle = 0.0
         ack_msg.steering_angle_velocity = 0.0
         ack_msg.speed = CONSTANT_THRUST       #CONSTANT_THRUST
         ack_msg.acceleration = 0.0
