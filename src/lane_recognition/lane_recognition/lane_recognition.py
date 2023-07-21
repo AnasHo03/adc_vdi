@@ -72,6 +72,7 @@ class LaneRecognition(Node):
         super().__init__('lane_recognition_node')
         # Variables ariables
         self.center_offset = 0.0
+        self.heading_angle = 0.0
         self.img_saving_counter_1 = int(0)
         self.img_saving_counter_2 = int(0)
 
@@ -107,14 +108,19 @@ class LaneRecognition(Node):
             cv2.imwrite(name, img_out)
         self.img_saving_counter_2 += 1
 
-        center_offset, left_detected, right_detected = self.process_lane(left_lane, right_lane)
+        center_offset, heading_angle, left_detected, right_detected = self.process_lane(left_lane, right_lane)
+        
+        # Print relevant info
         # print("left", left_detected)
         # print("right", right_detected)
-        self.get_logger().info('center offset:' + str(center_offset))
+        self.get_logger().info('Center offset:' + str(center_offset))
+        self.get_logger().info('Heading anle:' + str(heading_angle))
+
+        # Fill message
         lane.right_lane_detected = right_detected
         lane.left_lane_detected = left_detected
         lane.center_offset = center_offset
-
+        lane.heading_angle = heading_angle
 
         # Extract x and y points from left_lane and right_lane
         lane.right_lane_x_points = [float(point[0]) for point in right_lane]
@@ -326,17 +332,21 @@ class LaneRecognition(Node):
 
 ## array of points to center offset
     def process_lane(self, left, right):
-        left_defined = len(left) > 0
-        right_defined = len(right) > 0
+        left_defined = len(left) > 1
+        right_defined = len(right) > 1
 
         actual_left = False
         actual_right = False
         if left_defined and right_defined:
             center_offset = 450 - 0.5*(left[0][0]+right[0][0])
+            left_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0]))
+            right_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0]))
+            heading_angle = (left_angle + right_angle)/2 + math.radians(90)
             actual_left = True
             actual_right = True
         elif left_defined:
             lane_heading = left[-1][0] - left[0][0]
+            heading_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0])) + math.radians(90)
             if lane_heading > 0:
                 center_offset = 450 - (left[0][0] + lane_distance/2)
                 actual_left = True
@@ -345,6 +355,7 @@ class LaneRecognition(Node):
                 actual_right = True
         elif right_defined:
             lane_heading = right[-1][0] - right[0][0]
+            heading_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0])) + math.radians(90)
             if lane_heading > 0:
                 center_offset = 450 - (right[0][0] + lane_distance/2)
                 actual_left = True
@@ -353,8 +364,9 @@ class LaneRecognition(Node):
                 actual_right = True
         else:
             center_offset = math.nan
+            heading_angle = math.nan
 
-        return center_offset, actual_left, actual_right
+        return center_offset, heading_angle, actual_left, actual_right
 
 def main(args=None):
     rclpy.init(args=args)

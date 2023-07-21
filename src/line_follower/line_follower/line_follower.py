@@ -13,8 +13,8 @@ import numpy as np # Import the NumPy scientific computing library
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-CONSTANT_THRUST = float(0.4)  # [min is 0.3]
-KP = 0.020   # Proportional gain constant
+CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
+KP = 0.015   # Proportional gain constant
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
