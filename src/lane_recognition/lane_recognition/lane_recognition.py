@@ -341,7 +341,13 @@ class LaneRecognition(Node):
             center_offset = 450 - 0.5*(left[0][0]+right[0][0])
             left_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0]))
             right_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0]))
-            heading_angle = (left_angle + right_angle)/2 + math.radians(90)
+            angle_is_legit = np.sign(left_angle) == np.sign(right_angle)
+            if not angle_is_legit:
+                angle_is_legit = abs(left_angle - right_angle) < 0.45
+            if angle_is_legit:
+                heading_angle = (left_angle + right_angle)/2 + math.radians(90)
+            else:
+                heading_angle = math.nan
             actual_left = True
             actual_right = True
         elif left_defined:

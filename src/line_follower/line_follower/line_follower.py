@@ -15,17 +15,18 @@ import math
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-MIN_THRUST = 0.4
-MAX_THRUST = 0.7
+MIN_THRUST = 0.6
+MAX_THRUST = 1.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
-KP = 0.015   # Proportional gain constant
-KP_THRUST = 0.65
+KP = 0.016   # Proportional gain constant
+KP_THRUST = 1.0
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 3
-NUM_ELEMENTS_TO_AVERAGE_HEADING = 3
+NUM_ELEMENTS_TO_AVERAGE_HEADING = 24
+NUM_ELEMENTS_TO_CONSIDER_HEADING = 12 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
 
 class LineFollower(Node):
     def __init__(self):
@@ -137,7 +138,7 @@ class LineFollower(Node):
         if len(self.heading_array) > NUM_ELEMENTS_TO_AVERAGE_HEADING:
             self.heading_array.pop(0)  # Remove the oldest element from the array
         if len(self.heading_array) == NUM_ELEMENTS_TO_AVERAGE_HEADING:
-            average = sum(self.heading_array) / NUM_ELEMENTS_TO_AVERAGE_HEADING
+            average = sum(self.heading_array[0:NUM_ELEMENTS_TO_CONSIDER_HEADING]) / NUM_ELEMENTS_TO_CONSIDER_HEADING
             #self.get_logger().info('Average heading:' + str(average))
             return (average)
         else:
