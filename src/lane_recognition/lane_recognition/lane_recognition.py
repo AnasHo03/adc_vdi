@@ -27,7 +27,7 @@ height_multiplier = 4.5
 skew_level = 0.885 # 0-1
 
 ## filter params
-thresh = 138 # 0-255
+thresh = 125 # 0-255 (lower means higher sensitivity) 
 gaussian = 9 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
@@ -72,7 +72,9 @@ class LaneRecognition(Node):
         super().__init__('lane_recognition_node')
         # Variables ariables
         self.center_offset = 0.0
-        self.img_saving_counter = 0
+        self.img_saving_counter_1 = int(0)
+        self.img_saving_counter_2 = int(0)
+
         
         # Initialize subscribers
         self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
@@ -87,16 +89,23 @@ class LaneRecognition(Node):
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
         # Image stream writer
-        # name = './src/frame_samples_zed_troubleshoot/troubleshoot_img' + str(self.img_saving_counter) + '.jpeg'
-        # if self.img_saving_counter % 10 == 0:
-        #   cv2.imwrite(name, cv_image)
-        # self.img_saving_counter += 1
+        name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
+        if self.img_saving_counter_1 % 20 == 0:
+            cv2.imwrite(name, cv_image)
+        self.img_saving_counter_1 += 1
 
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
         img_bird = self.birdy_view(cv_image)
         img_filtered = self.filter_line(img_bird)
-        _, left_lane, right_lane = self.detect_lane(img_filtered)
+        img_out, left_lane, right_lane = self.detect_lane(img_filtered)
+
+
+        # Image stream writer (post processing)
+        name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
+        if self.img_saving_counter_2 % 20 == 0:
+            cv2.imwrite(name, img_out)
+        self.img_saving_counter_2 += 1
 
         center_offset, left_detected, right_detected = self.process_lane(left_lane, right_lane)
         # print("left", left_detected)
@@ -133,6 +142,8 @@ class LaneRecognition(Node):
         # img_out = cv2.adaptiveThreshold(img_out[:,:,1], 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, adaptive_block_size, adaptive_const)
         # img_out = img_out[:,:,1]
         # img_out = cv2.Canny(img_in,100,200)
+
+
         return img_out
 
     ## lane to array of points (x,y)
@@ -321,24 +332,24 @@ class LaneRecognition(Node):
         actual_left = False
         actual_right = False
         if left_defined and right_defined:
-            center_offset = 455 - 0.5*(left[0][0]+right[0][0])
+            center_offset = 450 - 0.5*(left[0][0]+right[0][0])
             actual_left = True
             actual_right = True
         elif left_defined:
             lane_heading = left[-1][0] - left[0][0]
             if lane_heading > 0:
-                center_offset = 455 - (left[0][0] + lane_distance/2)
+                center_offset = 450 - (left[0][0] + lane_distance/2)
                 actual_left = True
             else:
-                center_offset = 455 - (left[0][0] - lane_distance/2)
+                center_offset = 450 - (left[0][0] - lane_distance/2)
                 actual_right = True
         elif right_defined:
             lane_heading = right[-1][0] - right[0][0]
             if lane_heading > 0:
-                center_offset = 455 - (right[0][0] + lane_distance/2)
+                center_offset = 450 - (right[0][0] + lane_distance/2)
                 actual_left = True
             else:
-                center_offset = 455 - (right[0][0] - lane_distance/2)
+                center_offset = 450 - (right[0][0] - lane_distance/2)
                 actual_right = True
         else:
             center_offset = math.nan

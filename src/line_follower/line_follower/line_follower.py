@@ -13,8 +13,8 @@ import numpy as np # Import the NumPy scientific computing library
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-CONSTANT_THRUST = float(0.3)  # [min is 0.3]
-KP = 0.015   # Proportional gain constant
+CONSTANT_THRUST = float(0.4)  # [min is 0.3]
+KP = 0.020   # Proportional gain constant
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
@@ -50,13 +50,17 @@ class LineFollower(Node):
     def lane_callback(self, msg):
         # Fetch current offset from message
         self.center_offset = msg.center_offset
+
         # Filter signal
         self.filter_signal(self.center_offset)
+
         # Calculate steering angle with PID 
         steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
+
         # Update previous offset
         self.previous_center_offset = self.center_offset
 
+        # Publish Ackermann message
         self.send_ackermann(steering_angle)
 
     def pid_controller(self, center_offset, previous_center_offset):
@@ -79,7 +83,7 @@ class LineFollower(Node):
 
         # Clip signal
         clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
-        self.get_logger().info('steering angle:' + str(clipped_signal))
+        #self.get_logger().info('steering angle:' + str(clipped_signal))
         return clipped_signal
     
     def filter_signal(self, offset):
@@ -96,7 +100,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = CONSTANT_THRUST       #CONSTANT_THRUST
+        ack_msg.speed = CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
