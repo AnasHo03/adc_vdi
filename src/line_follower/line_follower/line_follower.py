@@ -15,13 +15,17 @@ import math
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
+MIN_THRUST = 0.4
+MAX_THRUST = 0.7
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
 KP = 0.015   # Proportional gain constant
+KP_THRUST = 0.65
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
 # Parameters filtering
-NUM_ELEMENTS_TO_AVERAGE = 3
+NUM_ELEMENTS_TO_AVERAGE_OFFSET = 3
+NUM_ELEMENTS_TO_AVERAGE_HEADING = 3
 
 class LineFollower(Node):
     def __init__(self):
@@ -29,6 +33,7 @@ class LineFollower(Node):
         
         # Variables
         self.offset_array = []
+        self.heading_array = []
 
         # Logic variables
         self.emergency_stop = False
@@ -36,7 +41,9 @@ class LineFollower(Node):
 
         # Variables
         self.center_offset = 0.0
+        self.heading_angle = 0.0
         self.previous_center_offset = 0.0
+        self.previous_heading = 0.0
         self.integral_term = 0.0
 
         # Define messages
@@ -52,19 +59,26 @@ class LineFollower(Node):
     def lane_callback(self, msg):
         # Fetch current offset from message
         self.center_offset = msg.center_offset
+        self.heading_angle = msg.heading_angle
 
         # Filter signal
-        self.center_offset = self.filter_signal(self.center_offset)
+        self.center_offset = self.filter_signal_offset(self.center_offset)
+        self.heading_angle = self.filter_signal_heading(self.heading_angle)
 
         # Calculate steering angle with PID 
         steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
 
-        # Update previous offset if offset is NaN
+        # Calculate thrust
+        thrust = self.speed_controller(self.heading_angle)
+
+        # Update previous offset and heading if offset is NaN
         if not math.isnan(self.center_offset):
             self.previous_center_offset = self.center_offset
+        if not math.isnan(self.heading_angle):
+            self.previous_heading = self.heading_angle
 
         # Publish Ackermann message
-        self.send_ackermann(steering_angle)
+        self.send_ackermann(steering_angle, thrust)
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero (TODO: update to match camera position relative to center)
@@ -89,26 +103,53 @@ class LineFollower(Node):
         #self.get_logger().info('steering angle:' + str(clipped_signal))
         return clipped_signal
     
-    def filter_signal(self, offset):
+    def speed_controller(self, heading_angle):
+        # Proportional term
+        norm_heading_angle = abs(abs(heading_angle) - 1.3)
+        proportional_term = KP_THRUST * norm_heading_angle
+
+        # Clip signal
+        clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
+        self.get_logger().info('Thrust:' + str(clipped_signal))
+        return clipped_signal
+
+    def filter_signal_offset(self, offset):
         if not math.isnan(offset):  # Check if offset is NaN
             self.offset_array.append(offset)
         else:
             self.offset_array.append(self.previous_center_offset)
 
-        if len(self.offset_array) > NUM_ELEMENTS_TO_AVERAGE:
+        if len(self.offset_array) > NUM_ELEMENTS_TO_AVERAGE_OFFSET:
             self.offset_array.pop(0)  # Remove the oldest element from the array
-        if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
-            average = sum(self.offset_array) / len(self.offset_array)
-            self.get_logger().info('Average offset:' + str(average))
+        if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE_OFFSET:
+            average = sum(self.offset_array) / NUM_ELEMENTS_TO_AVERAGE_OFFSET
+            #self.get_logger().info('Average offset:' + str(average))
             return (average)
         else:
             return (offset)
+
+    def filter_signal_heading(self, heading):
+        if not math.isnan(heading):  # Check if offset is NaN
+            self.heading_array.append(heading)
+        else:
+            self.heading_array.append(self.previous_heading)
+
+        if len(self.heading_array) > NUM_ELEMENTS_TO_AVERAGE_HEADING:
+            self.heading_array.pop(0)  # Remove the oldest element from the array
+        if len(self.heading_array) == NUM_ELEMENTS_TO_AVERAGE_HEADING:
+            average = sum(self.heading_array) / NUM_ELEMENTS_TO_AVERAGE_HEADING
+            #self.get_logger().info('Average heading:' + str(average))
+            return (average)
+        else:
+            return (heading)
+
+
         
-    def send_ackermann(self, steering_angle):
+    def send_ackermann(self, steering_angle, thrust):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
