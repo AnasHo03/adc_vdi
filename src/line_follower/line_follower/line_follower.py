@@ -94,7 +94,7 @@ class LineFollower(Node):
         
     def send_ackermann(self, steering_angle):
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = 0.0
+        ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
         ack_msg.speed = CONSTANT_THRUST       #CONSTANT_THRUST
         ack_msg.acceleration = 0.0
