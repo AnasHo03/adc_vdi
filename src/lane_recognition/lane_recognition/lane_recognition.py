@@ -70,8 +70,10 @@ bird_transform_matrix = cv2.getPerspectiveTransform(roi_in,roi_out)
 class LaneRecognition(Node):
     def __init__(self):
         super().__init__('lane_recognition_node')
-        # Logic variables
+        # Variables ariables
         self.center_offset = 0.0
+        self.img_saving_counter = 0
+        
         # Initialize subscribers
         self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
         # Initialize CvBridge
@@ -84,6 +86,12 @@ class LaneRecognition(Node):
         # Convert the ROS image message to OpenCV format
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
+        # Image stream writer
+        # name = './src/frame_samples_zed_troubleshoot/troubleshoot_img' + str(self.img_saving_counter) + '.jpeg'
+        # if self.img_saving_counter % 10 == 0:
+        #   cv2.imwrite(name, cv_image)
+        # self.img_saving_counter += 1
+
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
         img_bird = self.birdy_view(cv_image)
@@ -91,9 +99,9 @@ class LaneRecognition(Node):
         _, left_lane, right_lane = self.detect_lane(img_filtered)
 
         center_offset, left_detected, right_detected = self.process_lane(left_lane, right_lane)
-        print("öeft", left_detected)
-        print("right", right_detected)
-        print("center offset", center_offset)
+        # print("left", left_detected)
+        # print("right", right_detected)
+        self.get_logger().info('center offset:' + str(center_offset))
         lane.right_lane_detected = right_detected
         lane.left_lane_detected = left_detected
         lane.center_offset = center_offset

@@ -13,13 +13,13 @@ import numpy as np # Import the NumPy scientific computing library
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-CONSTANT_THRUST = float(0.2)  # [0 to 2.5]
-KP = 0.005  # Proportional gain constant
+CONSTANT_THRUST = float(0.3)  # [min is 0.3]
+KP = 0.015   # Proportional gain constant
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
 # Parameters filtering
-NUM_ELEMENTS_TO_AVERAGE = 5
+NUM_ELEMENTS_TO_AVERAGE = 6
 
 class LineFollower(Node):
     def __init__(self):
@@ -50,10 +50,10 @@ class LineFollower(Node):
     def lane_callback(self, msg):
         # Fetch current offset from message
         self.center_offset = msg.center_offset
-
+        # Filter signal
+        self.filter_signal(self.center_offset)
         # Calculate steering angle with PID 
-        steering_angle = self.pid_controller(self.center_offset)
-        
+        steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
         # Update previous offset
         self.previous_center_offset = self.center_offset
 
@@ -61,38 +61,42 @@ class LineFollower(Node):
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero (TODO: update to match camera position relative to center)
-        current_error = 0 - center_offset  
+        current_error = 0 - center_offset
         previous_error = 0 - previous_center_offset
 
         # Proportional term
         proportional_term = KP * current_error
         
-        # Integral term
-        self.integral_term += KI * current_error
+        # # Integral term
+        # self.integral_term += KI * current_error
 
-        # Derivative term
-        derivative_term = KD * (current_error - previous_error)
+        # # Derivative term
+        # derivative_term = KD * (current_error - previous_error)
 
         # Signal (terms combined)
-        signal = proportional_term + self.integral_term + derivative_term
+        #signal = proportional_term + self.integral_term + derivative_term
+        signal = proportional_term
 
         # Clip signal
         clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
-        
+        self.get_logger().info('steering angle:' + str(clipped_signal))
         return clipped_signal
     
-    def filter_signal(self, steering_angle):
-        self.offset_array.append(steering_angle)
+    def filter_signal(self, offset):
+        self.offset_array.append(offset)
+        if len(self.offset_array) > NUM_ELEMENTS_TO_AVERAGE:
+            self.offset_array.pop(0)  # Remove the oldest element from the array
         if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
             average = sum(self.offset_array) / len(self.offset_array)
-            self.steering_angle = [] 
             return average
+        else:
+            return offset
         
     def send_ackermann(self, steering_angle):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.0       #CONSTANT_THRUST
+        ack_msg.speed = CONSTANT_THRUST       #CONSTANT_THRUST
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
