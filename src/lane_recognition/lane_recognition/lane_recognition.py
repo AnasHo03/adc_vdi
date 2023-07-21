@@ -90,10 +90,10 @@ class LaneRecognition(Node):
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
         # Image stream writer
-        name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
-        if self.img_saving_counter_1 % 20 == 0:
-            cv2.imwrite(name, cv_image)
-        self.img_saving_counter_1 += 1
+        # name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
+        # if self.img_saving_counter_1 % 20 == 0:
+        #     cv2.imwrite(name, cv_image)
+        # self.img_saving_counter_1 += 1
 
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
@@ -103,18 +103,18 @@ class LaneRecognition(Node):
 
 
         # Image stream writer (post processing)
-        name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
-        if self.img_saving_counter_2 % 20 == 0:
-            cv2.imwrite(name, img_out)
-        self.img_saving_counter_2 += 1
+        # name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
+        # if self.img_saving_counter_2 % 20 == 0:
+        #     cv2.imwrite(name, img_out)
+        # self.img_saving_counter_2 += 1
 
         center_offset, heading_angle, left_detected, right_detected = self.process_lane(left_lane, right_lane)
         
         # Print relevant info
         # print("left", left_detected)
         # print("right", right_detected)
-        self.get_logger().info('Center offset:' + str(center_offset))
-        self.get_logger().info('Heading anle:' + str(heading_angle))
+        #self.get_logger().info('Center offset:' + str(center_offset))
+        #self.get_logger().info('Heading anle:' + str(heading_angle))
 
         # Fill message
         lane.right_lane_detected = right_detected

@@ -8,8 +8,10 @@ from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import UInt8, UInt16MultiArray
 from team_interfaces.msg import Lane
 
+
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
+import math
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
@@ -19,7 +21,7 @@ KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
 
 # Parameters filtering
-NUM_ELEMENTS_TO_AVERAGE = 6
+NUM_ELEMENTS_TO_AVERAGE = 3
 
 class LineFollower(Node):
     def __init__(self):
@@ -52,13 +54,14 @@ class LineFollower(Node):
         self.center_offset = msg.center_offset
 
         # Filter signal
-        self.filter_signal(self.center_offset)
+        self.center_offset = self.filter_signal(self.center_offset)
 
         # Calculate steering angle with PID 
         steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
 
-        # Update previous offset
-        self.previous_center_offset = self.center_offset
+        # Update previous offset if offset is NaN
+        if not math.isnan(self.center_offset):
+            self.previous_center_offset = self.center_offset
 
         # Publish Ackermann message
         self.send_ackermann(steering_angle)
@@ -87,14 +90,19 @@ class LineFollower(Node):
         return clipped_signal
     
     def filter_signal(self, offset):
-        self.offset_array.append(offset)
+        if not math.isnan(offset):  # Check if offset is NaN
+            self.offset_array.append(offset)
+        else:
+            self.offset_array.append(self.previous_center_offset)
+
         if len(self.offset_array) > NUM_ELEMENTS_TO_AVERAGE:
             self.offset_array.pop(0)  # Remove the oldest element from the array
         if len(self.offset_array) == NUM_ELEMENTS_TO_AVERAGE:
             average = sum(self.offset_array) / len(self.offset_array)
-            return average
+            self.get_logger().info('Average offset:' + str(average))
+            return (average)
         else:
-            return offset
+            return (offset)
         
     def send_ackermann(self, steering_angle):
         ack_msg = AckermannDrive()
