@@ -23,16 +23,17 @@ MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
 MIN_THRUST = 0.8
 MAX_THRUST = 1.5
-CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
-CONSTANT_THRUST_DRAG = 2.5
+CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
+CONSTANT_THRUST_DRAG = 4.0
 KP_LO = 0.0181   # Proportional gain constant
-KP_DRAG_RACING = 0.018   # drag racing KP
+KP_DRAG_RACING = 0.0195   # drag racing KP
 CENTER_OFFSET_FOR_LOWER_KP = 12.0
 KP_THRUST = 1.0
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
 KD = 0.00025    # Derivative gain
+KD_DRAG_RACING = 0.0040 # drag racing KD
 SIGMOID_SLOPE = 7.5
 SIGMOID_X_OFFSET = 0.87
 SIGMOID_YMAX_OFFSET = 0.25
@@ -154,7 +155,8 @@ class LineFollower(Node):
                 integral_term = sum(self.integral_term) / INTEGRAL_CONTROLLER_FRAMES
             else:
                 integral_term = KI_DRAG_RACING * current_error
-            signal = proportional_term + integral_term
+            derivative_term = KD_DRAG_RACING * (current_error - previous_error)
+            signal = proportional_term + integral_term + derivative_term
             clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE_DRAG, MAX_STEERING_ANGLE_DRAG)
 
         
