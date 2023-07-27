@@ -19,18 +19,21 @@ DELAY_IN_FRAMES = 70
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
-MIN_THRUST = 0.6
+MIN_THRUST = 0.8
 MAX_THRUST = 1.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
-KP = 0.017   # Proportional gain constant
+KP = 0.0184   # Proportional gain constant
 KP_THRUST = 1.0
-KI = 0.0017    # Integral gain
-KD = 0.0    # Derivative gain
+KI = 0.0001    # Integral gain
+KD = 0.00025    # Derivative gain
+SIGMOID_SLOPE = 7.5
+SIGMOID_X_OFFSET = 0.87
+SIGMOID_YMAX_OFFSET = 0.25
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 3
-NUM_ELEMENTS_TO_AVERAGE_HEADING = 24
-NUM_ELEMENTS_TO_CONSIDER_HEADING = 12 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
+NUM_ELEMENTS_TO_AVERAGE_HEADING = 18
+NUM_ELEMENTS_TO_CONSIDER_HEADING = 9 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
 
 class LineFollower(Node):
     def __init__(self):
@@ -105,6 +108,9 @@ class LineFollower(Node):
             # Publish Ackermann message after delay
             if self.start_ctr > DELAY_IN_FRAMES:
                 self.send_ackermann(steering_angle, thrust)
+            # Countdown
+            elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
+                self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
             self.start_ctr += 1
 
     def pid_controller(self, center_offset, previous_center_offset):
@@ -116,14 +122,13 @@ class LineFollower(Node):
         proportional_term = KP * current_error
         
         # # Integral term
-        #self.integral_term += KI * current_error
+        self.integral_term += KI * current_error
 
         # # Derivative term
-        # derivative_term = KD * (current_error - previous_error)
+        derivative_term = KD * (current_error - previous_error)
 
         # Signal (terms combined)
-        #signal = proportional_term + self.integral_term + derivative_term
-        signal = proportional_term 
+        signal = proportional_term
 
         # Clip signal
         clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
@@ -133,11 +138,13 @@ class LineFollower(Node):
     def speed_controller(self, heading_angle):
         # Proportional term
         norm_heading_angle = abs(abs(heading_angle) - 1.3)
-        proportional_term = KP_THRUST * norm_heading_angle
+        proportional_term = self.sigmoid_controller(norm_heading_angle)
+        # proportional_term = KP_THRUST * norm_heading_angle
 
         # Clip signal
-        clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
-        return clipped_signal
+        # clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
+        # return clipped_signal
+        return proportional_term
 
     def filter_signal_offset(self, offset):
         if not math.isnan(offset):  # Check if offset is NaN
@@ -169,13 +176,14 @@ class LineFollower(Node):
         else:
             return (heading)
 
-
+    def sigmoid_controller(self, angle):
+	    return MIN_THRUST + (MAX_THRUST + SIGMOID_YMAX_OFFSET - MIN_THRUST)/(1 + math.exp(-SIGMOID_SLOPE*(angle - SIGMOID_X_OFFSET)))
         
     def send_ackermann(self, steering_angle, thrust):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 2.0 #thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
