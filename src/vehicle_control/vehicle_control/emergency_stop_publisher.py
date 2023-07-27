@@ -23,7 +23,13 @@ class EmergencyStopPublisher(Node):
             key = getch.getch()
             if key == ' ':
                 self.space_pressed = True
+                self.get_logger().info('Publishing emergency stop once!')
                 self.publish_emergency()
+            if key == 'r':
+                self.space_pressed = False
+                self.get_logger().info('Publishing resume once!')
+                self.publish_emergency()
+
 
 def main(args=None):
     rclpy.init(args=args)

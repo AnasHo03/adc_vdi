@@ -7,6 +7,7 @@ from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import UInt8, UInt16MultiArray
 from team_interfaces.msg import Lane
+from team_interfaces.msg import Emergency
 
 
 # Python dependancies
@@ -53,11 +54,15 @@ class LineFollower(Node):
 
         # Define messages
         self.ack_msg = AckermannDrive()
+        
         # Initialize subscribers
-        self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
+        #self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
+        self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
+
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
+        
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
 
@@ -79,26 +84,28 @@ class LineFollower(Node):
         # else:
         #     self.get_logger().info('I detect no    lane !')
 
-        # Filter signal
-        self.center_offset = self.filter_signal_offset(self.center_offset)
-        self.heading_angle = self.filter_signal_heading(self.heading_angle)
+        ## Only proceed if emergency stop is not triggered
+        if self.emergency_stop == False:
+            # Filter signal
+            self.center_offset = self.filter_signal_offset(self.center_offset)
+            self.heading_angle = self.filter_signal_heading(self.heading_angle)
 
-        # Calculate steering angle with PID 
-        steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
+            # Calculate steering angle with PID 
+            steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
 
-        # Calculate thrust
-        thrust = self.speed_controller(self.heading_angle)
+            # Calculate thrust
+            thrust = self.speed_controller(self.heading_angle)
 
-        # Update previous offset and heading if offset is NaN
-        if not math.isnan(self.center_offset):
-            self.previous_center_offset = self.center_offset
-        if not math.isnan(self.heading_angle):
-            self.previous_heading = self.heading_angle
+            # Update previous offset and heading if offset is NaN
+            if not math.isnan(self.center_offset):
+                self.previous_center_offset = self.center_offset
+            if not math.isnan(self.heading_angle):
+                self.previous_heading = self.heading_angle
 
-        # Publish Ackermann message after delay
-        if self.start_ctr > DELAY_IN_FRAMES:
-            self.send_ackermann(steering_angle, thrust)
-        self.start_ctr += 1
+            # Publish Ackermann message after delay
+            if self.start_ctr > DELAY_IN_FRAMES:
+                self.send_ackermann(steering_angle, thrust)
+            self.start_ctr += 1
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero (TODO: update to match camera position relative to center)
@@ -168,7 +175,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = thrust #CONSTANT_THRUST 
+        ack_msg.speed = 2.0 #thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
@@ -195,10 +202,24 @@ class LineFollower(Node):
           self.destroyed = True
           rclpy.shutdown()   
 
-    def emergency_shutdown_callback(self, joy_msg):
-        if joy_msg.buttons == 2:
+    def emergency_shutdown_callback(self, msg):
+        if msg.emergency_stop == True:
             self.emergency_stop = True
-            self.get_logger().info('Killswitch activated!')
+
+            self.get_logger().info('EMERGENCY STOP!')
+            # Send ackermann_halt for 2 second
+            t0 = self.get_clock().now().to_msg().sec
+            t_close = 2
+            while (self.get_clock().now().to_msg().sec - t0) < t_close:
+                self.send_ackermann_halt()
+        else: 
+            self.get_logger().info('Resuming!')
+            self.emergency_stop = False
+        
+        ## Alternative for RC
+        # if joy_msg.buttons == 2:
+        #     self.emergency_stop = True
+        #     self.get_logger().info('Killswitch activated!')
 
 
 def main(args=None):
