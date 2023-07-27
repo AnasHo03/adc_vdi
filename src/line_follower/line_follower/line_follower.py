@@ -18,7 +18,7 @@ MAX_STEERING_ANGLE = 0.442  # [rad]
 MIN_THRUST = 0.6
 MAX_THRUST = 1.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
-KP = 0.016   # Proportional gain constant
+KP = 0.017   # Proportional gain constant
 KP_THRUST = 1.0
 KI = 0.0    # Integral gain
 KD = 0.0    # Derivative gain
@@ -61,10 +61,23 @@ class LineFollower(Node):
         # Fetch current offset from message
         self.center_offset = msg.center_offset
         self.heading_angle = msg.heading_angle
+        self.right_lane_detected = msg.right_lane_detected
+        self.left_lane_detected = msg.left_lane_detected
+
+        # self.get_logger().info('Offset:' + str(self.center_offset))
+        # self.get_logger().info('Heading:' + str(self.heading_angle))
+        # if self.right_lane_detected and self.left_lane_detected:
+        #     self.get_logger().info('I detect both  lanes!')
+        # elif self.right_lane_detected:
+        #     self.get_logger().info('I detect right lane !')
+        # elif self.left_lane_detected:
+        #     self.get_logger().info('I detect left  lane !')
+        # else:
+        #     self.get_logger().info('I detect no    lane !')
 
         # Filter signal
-        self.center_offset = self.filter_signal_offset(self.center_offset)
-        self.heading_angle = self.filter_signal_heading(self.heading_angle)
+        # self.center_offset = self.filter_signal_offset(self.center_offset)
+        # self.heading_angle = self.filter_signal_heading(self.heading_angle)
 
         # Calculate steering angle with PID 
         steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
@@ -111,7 +124,7 @@ class LineFollower(Node):
 
         # Clip signal
         clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
-        self.get_logger().info('Thrust:' + str(clipped_signal))
+        #self.get_logger().info('Thrust:' + str(clipped_signal))
         return clipped_signal
 
     def filter_signal_offset(self, offset):
@@ -150,7 +163,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = thrust #CONSTANT_THRUST 
+        ack_msg.speed = 0.5 #thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)

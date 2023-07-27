@@ -20,14 +20,14 @@ height = 512
 scale = 1
 
 ## BEV params
-top_roi = 0.4238 # 0-1 (0 is top)
-bottom_roi = 0.5859 # 0-1 (0 is top)
+top_roi = 0.4395 # 0-1 (0 is top)
+bottom_roi = 0.6347 # 0-1 (0 is top)
 width_use = 1 # 0-1
-height_multiplier = 4.5
+height_multiplier = 3.5
 skew_level = 0.885 # 0-1
 
 ## filter params
-thresh = 125 # 0-255 (lower means higher sensitivity) 
+thresh = 135 # 0-255 (lower means higher sensitivity) 
 gaussian = 9 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
@@ -40,18 +40,22 @@ search_step = int(2) # px
 search_offset = int(7)
 left_search_dist = int(62 + search_offset)
 right_search_dist = int(62 + search_offset)
-start_search_height = int(370)
+start_search_height = int(343)
 height_step = int(4)
 radius = 20 # px
-angle_sweep = 200 # deg
+angle_sweep_0 = 200 # deg
+angle_sweep_1 = 140 # deg
 sweep_step = math.radians(5)
-max_points = 20
+max_points = 6
 
-start_angle = math.radians(90+angle_sweep/2)
-stop_angle = math.radians(90-angle_sweep/2)
+start_angle_0 = math.radians(90+angle_sweep_0/2)
+stop_angle_0 = math.radians(90-angle_sweep_0/2)
+start_angle_1 = math.radians(90+angle_sweep_1/2)
+stop_angle_1 = math.radians(90-angle_sweep_1/2)
 
 ## process lane params
-lane_distance = int(44)
+lane_distance = int(49)
+center_offset_constant = 452
 
 roi_in = np.float32(np.floor([
 	((1-width_use)*width*scale,0), # Top-left corner
@@ -90,8 +94,8 @@ class LaneRecognition(Node):
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
         # Image stream writer
-        # name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
-        # if self.img_saving_counter_1 % 20 == 0:
+        # name = './src/frame_samples_zed_troubleshoot/230727/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
+        # if self.img_saving_counter_1 % 5 == 0:
         #     cv2.imwrite(name, cv_image)
         # self.img_saving_counter_1 += 1
 
@@ -103,8 +107,8 @@ class LaneRecognition(Node):
 
 
         # Image stream writer (post processing)
-        # name = './src/frame_samples_zed_troubleshoot/pid_troubleshooting/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
-        # if self.img_saving_counter_2 % 20 == 0:
+        # name = './src/frame_samples_zed_troubleshoot/230727/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
+        # if self.img_saving_counter_2 % 5 == 0:
         #     cv2.imwrite(name, img_out)
         # self.img_saving_counter_2 += 1
 
@@ -219,7 +223,11 @@ class LaneRecognition(Node):
             ## sweep through angle range
             for i in range(0,max_points):
                 valid_points = []
-                angle = start_angle
+                angle = start_angle_1
+                stop_angle = stop_angle_1
+                if i == 0:
+                    angle = start_angle_0
+                    stop_angle = stop_angle_0
                 while angle >= stop_angle:
                     cx = int(radius * math.cos(-angle + heading) + x)
                     cy = int(radius * math.sin(-angle + heading) + y)
@@ -278,7 +286,11 @@ class LaneRecognition(Node):
             ## sweep through angle range
             for i in range(0,max_points):
                 valid_points = []
-                angle = start_angle
+                angle = start_angle_1
+                stop_angle = stop_angle_1
+                if i == 0:
+                    angle = start_angle_0
+                    stop_angle = stop_angle_0
                 while angle >= stop_angle:
                     cx = int(radius * math.cos(-angle + heading) + x)
                     cy = int(radius * math.sin(-angle + heading) + y)
@@ -338,7 +350,7 @@ class LaneRecognition(Node):
         actual_left = False
         actual_right = False
         if left_defined and right_defined:
-            center_offset = 450 - 0.5*(left[0][0]+right[0][0])
+            center_offset = center_offset_constant - 0.5*(left[0][0]+right[0][0])
             left_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0]))
             right_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0]))
             angle_is_legit = np.sign(left_angle) == np.sign(right_angle)
@@ -353,20 +365,34 @@ class LaneRecognition(Node):
         elif left_defined:
             lane_heading = left[-1][0] - left[0][0]
             heading_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0])) + math.radians(90)
-            if lane_heading > 0:
-                center_offset = 450 - (left[0][0] + lane_distance/2)
+            if abs(heading_angle) < math.radians(15):
+                if left[0][0] > center_offset_constant:
+                    center_offset = center_offset_constant - (left[0][0] - lane_distance/2)
+                    actual_right = True
+                else:
+                    center_offset = center_offset_constant - (left[0][0] + lane_distance/2)
+                    actual_left = True
+            elif lane_heading > 0:
+                center_offset = center_offset_constant - (left[0][0] + lane_distance/2)
                 actual_left = True
             else:
-                center_offset = 450 - (left[0][0] - lane_distance/2)
+                center_offset = center_offset_constant - (left[0][0] - lane_distance/2)
                 actual_right = True
         elif right_defined:
             lane_heading = right[-1][0] - right[0][0]
             heading_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0])) + math.radians(90)
-            if lane_heading > 0:
-                center_offset = 450 - (right[0][0] + lane_distance/2)
+            if abs(heading_angle) < math.radians(15):
+                if right[0][0] > center_offset_constant:
+                    center_offset = center_offset_constant - (right[0][0] - lane_distance/2)
+                    actual_right = True
+                else:
+                    center_offset = center_offset_constant - (right[0][0] + lane_distance/2)
+                    actual_left = True
+            elif lane_heading > 0:
+                center_offset = center_offset_constant - (right[0][0] + lane_distance/2)
                 actual_left = True
             else:
-                center_offset = 450 - (right[0][0] - lane_distance/2)
+                center_offset = center_offset_constant - (right[0][0] - lane_distance/2)
                 actual_right = True
         else:
             center_offset = math.nan
