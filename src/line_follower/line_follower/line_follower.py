@@ -13,6 +13,9 @@ from team_interfaces.msg import Lane
 import numpy as np # Import the NumPy scientific computing library
 import math
 
+# Parameters general
+DELAY_IN_FRAMES = 70
+
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MIN_THRUST = 0.6
@@ -20,7 +23,7 @@ MAX_THRUST = 1.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
 KP = 0.017   # Proportional gain constant
 KP_THRUST = 1.0
-KI = 0.0    # Integral gain
+KI = 0.0017    # Integral gain
 KD = 0.0    # Derivative gain
 
 # Parameters filtering
@@ -46,6 +49,7 @@ class LineFollower(Node):
         self.previous_center_offset = 0.0
         self.previous_heading = 0.0
         self.integral_term = 0.0
+        self.start_ctr = 0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -76,8 +80,8 @@ class LineFollower(Node):
         #     self.get_logger().info('I detect no    lane !')
 
         # Filter signal
-        # self.center_offset = self.filter_signal_offset(self.center_offset)
-        # self.heading_angle = self.filter_signal_heading(self.heading_angle)
+        self.center_offset = self.filter_signal_offset(self.center_offset)
+        self.heading_angle = self.filter_signal_heading(self.heading_angle)
 
         # Calculate steering angle with PID 
         steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
@@ -91,8 +95,10 @@ class LineFollower(Node):
         if not math.isnan(self.heading_angle):
             self.previous_heading = self.heading_angle
 
-        # Publish Ackermann message
-        self.send_ackermann(steering_angle, thrust)
+        # Publish Ackermann message after delay
+        if self.start_ctr > DELAY_IN_FRAMES:
+            self.send_ackermann(steering_angle, thrust)
+        self.start_ctr += 1
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero (TODO: update to match camera position relative to center)
@@ -103,14 +109,14 @@ class LineFollower(Node):
         proportional_term = KP * current_error
         
         # # Integral term
-        # self.integral_term += KI * current_error
+        #self.integral_term += KI * current_error
 
         # # Derivative term
         # derivative_term = KD * (current_error - previous_error)
 
         # Signal (terms combined)
         #signal = proportional_term + self.integral_term + derivative_term
-        signal = proportional_term
+        signal = proportional_term 
 
         # Clip signal
         clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
@@ -124,7 +130,6 @@ class LineFollower(Node):
 
         # Clip signal
         clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
-        #self.get_logger().info('Thrust:' + str(clipped_signal))
         return clipped_signal
 
     def filter_signal_offset(self, offset):
@@ -163,7 +168,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.5 #thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)

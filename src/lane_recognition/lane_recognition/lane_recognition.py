@@ -223,18 +223,18 @@ class LaneRecognition(Node):
             ## sweep through angle range
             for i in range(0,max_points):
                 valid_points = []
-                angle = start_angle_1
-                stop_angle = stop_angle_1
+                angle = stop_angle_1
+                stop_angle = start_angle_1
                 if i == 0:
-                    angle = start_angle_0
-                    stop_angle = stop_angle_0
-                while angle >= stop_angle:
+                    angle = stop_angle_0
+                    stop_angle = start_angle_0
+                while angle <= stop_angle:
                     cx = int(radius * math.cos(-angle + heading) + x)
                     cy = int(radius * math.sin(-angle + heading) + y)
 
                     # adjust if point is beyond image boundaries
                     if cx < 0 or cx >= max_x - 1 or cy < 0 or cy >= max_y:
-                        angle -= sweep_step
+                        angle += sweep_step
                         continue
                     img_out = cv2.circle(img_out, (cx,cy), radius = 1,color=(0, 0, 255), thickness=1) # visualization purposes
                     
@@ -263,7 +263,7 @@ class LaneRecognition(Node):
                         pixel_ratio = (white_pixels / region_pixels)
                         valid_points.append((cx,cy,pixel_ratio))
 
-                    angle -= sweep_step
+                    angle += sweep_step
 
                 # sort all potential connections and pick best choice
                 if valid_points:

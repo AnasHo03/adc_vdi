@@ -10,6 +10,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(ackermann_msgs REQUIRED)
+find_package(team_interfaces REQUIRED)
+
 
 # Include directories
 include_directories(include)
@@ -28,6 +30,7 @@ install(PROGRAMS
   ${PROJECT_NAME}/joy_to_ackermann.py
   ${PROJECT_NAME}/rc_to_joy.py
   ${PROJECT_NAME}/ackermann_to_vesc.py
+  ${PROJECT_NAME}/emergency_stop_publisher.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

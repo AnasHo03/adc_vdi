@@ -14,6 +14,7 @@ set(msg_files
   "msg/Car.msg"
   "msg/Lane.msg"
   "msg/Signs.msg"
+  "msg/Emergency.msg"
   DEPENDENCIES builtin_interfaces std_msgs
 )
 
