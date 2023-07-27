@@ -15,16 +15,23 @@ import numpy as np # Import the NumPy scientific computing library
 import math
 
 # Parameters general
+DRIVE_MODE = 1 # 0 = normal lap, 1 = drag racing
 DELAY_IN_FRAMES = 70
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
+MAX_STEERING_ANGLE_DRAG = 0.1
 MIN_THRUST = 0.8
 MAX_THRUST = 1.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4, max stable is 0.6) 
-KP = 0.0184   # Proportional gain constant
+CONSTANT_THRUST_DRAG = 2.5
+KP_LO = 0.0181   # Proportional gain constant
+KP_DRAG_RACING = 0.018   # drag racing KP
+CENTER_OFFSET_FOR_LOWER_KP = 12.0
 KP_THRUST = 1.0
 KI = 0.0001    # Integral gain
+KI_DRAG_RACING = 0.0004 # drag racing KI
+INTEGRAL_CONTROLLER_FRAMES = 8 # frames
 KD = 0.00025    # Derivative gain
 SIGMOID_SLOPE = 7.5
 SIGMOID_X_OFFSET = 0.87
@@ -52,7 +59,8 @@ class LineFollower(Node):
         self.heading_angle = 0.0
         self.previous_center_offset = 0.0
         self.previous_heading = 0.0
-        self.integral_term = 0.0
+        self.integral_term = []
+        self.integral_term_speed = 0.0
         self.start_ctr = 0
 
         # Define messages
@@ -118,20 +126,38 @@ class LineFollower(Node):
         current_error = 0 - center_offset
         previous_error = 0 - previous_center_offset
 
-        # Proportional term
-        proportional_term = KP * current_error
+        # discrete piecewise function
+        # if abs(current_error) < CENTER_OFFSET_FOR_LOWER_KP:
+        #     proportional_term = KP_LO * current_error # y = mx
+        #     self.get_logger().info('LO')
+        # else:
+        #     proportional_term = KP_HI * current_error - (KP_HI - KP_LO)*CENTER_OFFSET_FOR_LOWER_KP # y = mx + c
+        #     self.get_logger().info('HI')
         
         # # Integral term
-        self.integral_term += KI * current_error
+        
 
         # # Derivative term
         derivative_term = KD * (current_error - previous_error)
 
-        # Signal (terms combined)
-        signal = proportional_term
+        # Signal (terms combined) and proportional
+        if DRIVE_MODE == 0:
+            proportional_term = KP_LO * current_error
+            signal = proportional_term
+            clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
+        else:
+            proportional_term = KP_DRAG_RACING * current_error
+            self.integral_term.append(KI_DRAG_RACING * current_error)
+            if len(self.integral_term) > INTEGRAL_CONTROLLER_FRAMES:
+                self.integral_term.pop(0)
+            if len(self.integral_term) == INTEGRAL_CONTROLLER_FRAMES:
+                integral_term = sum(self.integral_term) / INTEGRAL_CONTROLLER_FRAMES
+            else:
+                integral_term = KI_DRAG_RACING * current_error
+            signal = proportional_term + integral_term
+            clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE_DRAG, MAX_STEERING_ANGLE_DRAG)
 
-        # Clip signal
-        clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
+        
         #self.get_logger().info('steering angle:' + str(clipped_signal))
         return clipped_signal
     
@@ -140,7 +166,6 @@ class LineFollower(Node):
         norm_heading_angle = abs(abs(heading_angle) - 1.3)
         proportional_term = self.sigmoid_controller(norm_heading_angle)
         # proportional_term = KP_THRUST * norm_heading_angle
-
         # Clip signal
         # clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
         # return clipped_signal
@@ -180,6 +205,8 @@ class LineFollower(Node):
 	    return MIN_THRUST + (MAX_THRUST + SIGMOID_YMAX_OFFSET - MIN_THRUST)/(1 + math.exp(-SIGMOID_SLOPE*(angle - SIGMOID_X_OFFSET)))
         
     def send_ackermann(self, steering_angle, thrust):
+        if DRIVE_MODE == 1: # constant thrust for drag racing
+            thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0

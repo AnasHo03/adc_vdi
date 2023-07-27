@@ -95,7 +95,7 @@ class LaneRecognition(Node):
 
         # Image stream writer
         # name = './src/frame_samples_zed_troubleshoot/230727/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
-        # if self.img_saving_counter_1 % 5 == 0:
+        # if self.img_saving_counter_1 % 2 == 0:
         #     cv2.imwrite(name, cv_image)
         # self.img_saving_counter_1 += 1
 
@@ -108,7 +108,7 @@ class LaneRecognition(Node):
 
         # Image stream writer (post processing)
         # name = './src/frame_samples_zed_troubleshoot/230727/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
-        # if self.img_saving_counter_2 % 5 == 0:
+        # if self.img_saving_counter_2 % 2 == 0:
         #     cv2.imwrite(name, img_out)
         # self.img_saving_counter_2 += 1
 
