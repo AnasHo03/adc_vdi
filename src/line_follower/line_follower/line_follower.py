@@ -15,7 +15,7 @@ import numpy as np # Import the NumPy scientific computing library
 import math
 
 # Parameters general
-DRIVE_MODE = 1 # 0 = normal lap, 1 = drag racing
+DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing
 DELAY_IN_FRAMES = 70
 
 # Parameters driving
@@ -205,14 +205,14 @@ class LineFollower(Node):
 
     def sigmoid_controller(self, angle):
 	    return MIN_THRUST + (MAX_THRUST + SIGMOID_YMAX_OFFSET - MIN_THRUST)/(1 + math.exp(-SIGMOID_SLOPE*(angle - SIGMOID_X_OFFSET)))
-        
+
     def send_ackermann(self, steering_angle, thrust):
         if DRIVE_MODE == 1: # constant thrust for drag racing
             thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = steering_angle
+        ack_msg.steering_angle = 0.0 #steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = thrust #CONSTANT_THRUST 
+        ack_msg.speed = 0.0 #thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)

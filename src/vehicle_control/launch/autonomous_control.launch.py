@@ -68,7 +68,17 @@ def generate_launch_description():
         output='screen',
     )
 
+    # Micro-ROS Agent
+    micro_ros_agent_node = Node(
+        package='micro_ros_agent',
+        executable='micro_ros_agent',
+        name='micro_ros_agent',
+        arguments=['serial', '-b', '921600', '--dev', '/dev/stm32_nucleo'],
+        output='screen',
+    )
+    
     return LaunchDescription([
+        micro_ros_agent_node,
         vesc_driver_node,
         # twist_to_ackermann_node,
         ackermann_to_vesc_node,

@@ -15,6 +15,7 @@ set(msg_files
   "msg/Lane.msg"
   "msg/Signs.msg"
   "msg/Emergency.msg"
+  "msg/Int16MultiArrayStamped.msg"
   DEPENDENCIES builtin_interfaces std_msgs
 )
 

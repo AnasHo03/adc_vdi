@@ -29,3 +29,7 @@
 [submodule "src/twist_to_ackermann"]
 	path = src/twist_to_ackermann
 	url = https://github.com/stephenadhi/twist_to_ackermann.git
+[submodule "src/micro_ros_setup"]
+	path = src/micro_ros_setup
+	url = https://github.com/micro-ROS/micro_ros_setup.git
+	branch = humble
