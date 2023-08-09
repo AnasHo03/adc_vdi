@@ -4,9 +4,9 @@ All packages including drivers, submodules, and dependencies are available insid
 
     ├── depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image
     ├── lane_recognition    : Package to recognize lane lines based on image processing algorithms
-    ├── speed_controller    : Package that outputs linear and steering command velocity
+    ├── line_follower       : Speed and steering angle controller
     ├── team_interfaces     : Custom messages definition for our autonomous racing and parking module
-    ├── vehicle_control     : Package to control the vehicle using the ackermann message and VESC motor  
+    ├── vehicle_control     : Launch package  
     ├── zed_perception      : Package to launch the ZED camera nodes, including config for the ZED object detection API
     ├── sign_detection      : Package to detect specific signs based on a custom trained yolov8n model.
     
