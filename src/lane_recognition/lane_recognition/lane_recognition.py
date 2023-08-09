@@ -27,7 +27,7 @@ height_multiplier = 3.5
 skew_level = 0.885 # 0-1
 
 ## filter params
-thresh = 135 # 0-255 (lower means higher sensitivity) 
+thresh = 138 # 0-255 (lower means higher sensitivity) 
 gaussian = 9 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
@@ -94,10 +94,10 @@ class LaneRecognition(Node):
         cv_image = self.bridge.imgmsg_to_cv2(col_img_raw, desired_encoding='bgr8')
 
         # Image stream writer
-        # name = './src/frame_samples_zed_troubleshoot/230727/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
-        # if self.img_saving_counter_1 % 2 == 0:
-        #     cv2.imwrite(name, cv_image)
-        # self.img_saving_counter_1 += 1
+        name = './src/frame_samples_zed_troubleshoot/3/img_' + str(self.img_saving_counter_1/20) + '.jpeg'
+        if self.img_saving_counter_1 % 10 == 0:
+            cv2.imwrite(name, cv_image)
+        self.img_saving_counter_1 += 1
 
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
@@ -106,14 +106,18 @@ class LaneRecognition(Node):
         img_out, left_lane, right_lane = self.detect_lane(img_filtered)
 
 
-        # Image stream writer (post processing)
-        # name = './src/frame_samples_zed_troubleshoot/230727/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
-        # if self.img_saving_counter_2 % 2 == 0:
-        #     cv2.imwrite(name, img_out)
-        # self.img_saving_counter_2 += 1
+
 
         center_offset, heading_angle, left_detected, right_detected = self.process_lane(left_lane, right_lane)
         
+        img_out = self.label_offsets(img_out, center_offset, heading_angle)
+
+        # Image stream writer (post processing)
+        name = './src/frame_samples_zed_troubleshoot/3/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
+        if self.img_saving_counter_2 % 10 == 0:
+            cv2.imwrite(name, img_out)
+        self.img_saving_counter_2 += 1
+
         # Print relevant info
         # print("left", left_detected)
         # print("right", right_detected)
@@ -176,7 +180,7 @@ class LaneRecognition(Node):
         lane_points_right = []
 
         ## find left lane start to the left of center point
-        for x in range(0,5):
+        for x in range(0,4):
             if not left_lane_found:
                 left_search_height -= height_step
                 left_start = int(max_x/2 + search_offset - x*7)
@@ -193,7 +197,7 @@ class LaneRecognition(Node):
                 break
 
         ## find right lane start to the right of center point
-        for x in range(0,5):
+        for x in range(0,4):
             if not right_lane_found:
                 right_search_height -= height_step
                 right_start = int(max_x/2 + search_offset + x*7)
@@ -398,8 +402,15 @@ class LaneRecognition(Node):
             center_offset = math.nan
             heading_angle = math.nan
 
+
         return center_offset, heading_angle, actual_left, actual_right
 
+# print the center offset and heading angle onto the debug image
+    def label_offsets(self, img, offset, angle):
+        out = cv2.putText(img, 'Offset: ' + str (offset) + ' | Angle: ' + str(angle), (10,40), cv2.FONT_HERSHEY_SIMPLEX, 
+                   0.8, (255,255,255), 2, cv2.LINE_AA)
+
+        return out
 def main(args=None):
     rclpy.init(args=args)
     node = LaneRecognition()

@@ -21,27 +21,26 @@ DELAY_IN_FRAMES = 70
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 0.8
-MAX_THRUST = 1.5
+MIN_THRUST = 1
+MAX_THRUST = 1.6
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
-KP_LO = 0.0181   # Proportional gain constant
+KP_LO = 0.018 # Proportional gain constant
 KP_DRAG_RACING = 0.0195   # drag racing KP
-CENTER_OFFSET_FOR_LOWER_KP = 12.0
 KP_THRUST = 1.0
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
-KD = 0.00025    # Derivative gain
+KD = 0.0 #0.00050    # Derivative gain
 KD_DRAG_RACING = 0.0040 # drag racing KD
 SIGMOID_SLOPE = 7.5
-SIGMOID_X_OFFSET = 0.87
+SIGMOID_X_OFFSET = 0.9
 SIGMOID_YMAX_OFFSET = 0.25
 
 # Parameters filtering
-NUM_ELEMENTS_TO_AVERAGE_OFFSET = 3
-NUM_ELEMENTS_TO_AVERAGE_HEADING = 18
-NUM_ELEMENTS_TO_CONSIDER_HEADING = 9 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
+NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
+NUM_ELEMENTS_TO_AVERAGE_HEADING = 10
+NUM_ELEMENTS_TO_CONSIDER_HEADING = 5 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
 
 class LineFollower(Node):
     def __init__(self):
@@ -117,35 +116,28 @@ class LineFollower(Node):
             # Publish Ackermann message after delay
             if self.start_ctr > DELAY_IN_FRAMES:
                 self.send_ackermann(steering_angle, thrust)
-            # Countdown
+            # Countdownpid
             elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
+                if DRIVE_MODE == 1:
+                    self.get_logger().info("DRAG RACE MODE!")
+
                 self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
             self.start_ctr += 1
 
     def pid_controller(self, center_offset, previous_center_offset):
-        # Desired offset is zero (TODO: update to match camera position relative to center)
+        # Desired offset is zero
         current_error = 0 - center_offset
         previous_error = 0 - previous_center_offset
-
-        # discrete piecewise function
-        # if abs(current_error) < CENTER_OFFSET_FOR_LOWER_KP:
-        #     proportional_term = KP_LO * current_error # y = mx
-        #     self.get_logger().info('LO')
-        # else:
-        #     proportional_term = KP_HI * current_error - (KP_HI - KP_LO)*CENTER_OFFSET_FOR_LOWER_KP # y = mx + c
-        #     self.get_logger().info('HI')
         
-        # # Integral term
-        
-
-        # # Derivative term
-        derivative_term = KD * (current_error - previous_error)
 
         # Signal (terms combined) and proportional
         if DRIVE_MODE == 0:
             proportional_term = KP_LO * current_error
-            signal = proportional_term
+            derivative_term = KD * (current_error - previous_error)
+            signal = proportional_term + derivative_term
             clipped_signal = np.clip(signal, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
+
+
         else:
             proportional_term = KP_DRAG_RACING * current_error
             self.integral_term.append(KI_DRAG_RACING * current_error)
@@ -210,9 +202,9 @@ class LineFollower(Node):
         if DRIVE_MODE == 1: # constant thrust for drag racing
             thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = 0.0 #steering_angle
+        ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.0 #thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)

@@ -1,0 +1,3 @@
+1. Check threshold value by activating debug mode (no thrust, print out image) evaluate qualitatively
+2. Check offset value put car at center offset should be ~0 put on right and left value should be +/- the same
+3. 

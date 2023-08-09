@@ -56,15 +56,15 @@
 
         pos_tracking:
             pos_tracking_enabled: false # True to enable positional tracking from start            
-            imu_fusion: true # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
-            publish_tf: true # [usually overwritten by launch file] publish `odom -> base_link` TF
-            publish_map_tf: true # [usually overwritten by launch file] publish `map -> odom` TF
-            publish_imu_tf: true # [usually overwritten by launch file] enable/disable the IMU TF broadcasting
+            imu_fusion: false # enable/disable IMU fusion. When set to false, only the optical odometry will be used.
+            publish_tf: false # [usually overwritten by launch file] publish `odom -> base_link` TF
+            publish_map_tf: false # [usually overwritten by launch file] publish `map -> odom` TF
+            publish_imu_tf: false # [usually overwritten by launch file] enable/disable the IMU TF broadcasting
             base_frame: "base_link" # usually overwritten by launch file
             map_frame: "map"
             odometry_frame: "odom"
             area_memory_db_path: ""
-            area_memory: true # Enable to detect loop closure
+            area_memory: false # # WAS ON!! Enable to detect loop closure
             depth_min_range: 0.2 # Set this value for removing fixed zones of the robot in the FoV of the camerafrom the visual odometry evaluation
             set_as_static: false # If 'true' the camera will be static and not move in the environment
             set_gravity_as_origin: true # If 'true' align the positional tracking world to imu gravity measurement. Keep the yaw from the user initial pose.
@@ -87,7 +87,7 @@
             gnss_init_distance: 5.0 # The minimum distance traveled by the robot required to initilize the GNSS fusion
             gnss_zero_altitude: false # Set to `true` to ignore GNSS altitude information
             gnss_frame: "gnss_link" # [usually overwritten by launch file] The TF frame of the GNSS sensor
-            publish_utm_tf: true # Publish `utm` -> `map` TF
+            publish_utm_tf: false # Publish `utm` -> `map` TF
             broadcast_utm_transform_as_parent_frame: false # if 'true' publish `utm` -> `map` TF, otherwise `map` -> `utm`
 
         mapping:
@@ -117,8 +117,8 @@
             confidence_threshold: 40.0 # [DYNAMIC] - Minimum value of the detection confidence of an object [0,99]
             prediction_timeout: 0.5 # During this time [sec], the object will have OK state even if it is not detected. Set this parameter to 0 to disable SDK predictions            
             filtering_mode: 1 # '0': NONE - '1': NMS3D - '2': NMS3D_PER_CLASS
-            mc_people: true # [DYNAMIC] - Enable/disable the detection of persons for 'MULTI_CLASS_X' models
-            mc_vehicle: true # [DYNAMIC] - Enable/disable the detection of vehicles for 'MULTI_CLASS_X' models
+            mc_people: false # [DYNAMIC] - Enable/disable the detection of persons for 'MULTI_CLASS_X' models
+            mc_vehicle: false # [DYNAMIC] - Enable/disable the detection of vehicles for 'MULTI_CLASS_X' models
             mc_bag: false # [DYNAMIC] - Enable/disable the detection of bags for 'MULTI_CLASS_X' models
             mc_animal: false # [DYNAMIC] - Enable/disable the detection of animals for 'MULTI_CLASS_X' models
             mc_electronics: false # [DYNAMIC] - Enable/disable the detection of electronic devices for 'MULTI_CLASS_X' models
@@ -137,7 +137,7 @@
             max_range: 20.0 # [m] Defines a upper depth range for detections
             body_kp_selection: 'FULL' # 'FULL', 'UPPER_BODY'
             enable_body_fitting: false # Defines if the body fitting will be applied
-            enable_tracking: true # Defines if the object detection will track objects across images flow
+            enable_tracking: false # Defines if the object detection will track objects across images flow
             prediction_timeout_s: 0.5 # During this time [sec], the skeleton will have OK state even if it is not detected. Set this parameter to 0 to disable SDK predictions
             confidence_threshold: 50.0 # [DYNAMIC] - Minimum value of the detection confidence of skeleton key points [0,99]
             minimum_keypoints_threshold: 5 # [DYNAMIC] - Minimum number of skeleton key points to be detected for a valid skeleton
