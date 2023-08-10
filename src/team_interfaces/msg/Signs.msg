@@ -1,7 +1,6 @@
 # Custom message to define signs
-bool overtaking_allowed
-bool overtaking_forbidden
-bool cross_parking 
-bool parallel_parking
+bool sign_detected
+bool overtaking
+bool cross_parking # If false, parallel parking
 bool pit_in
 bool pit_out

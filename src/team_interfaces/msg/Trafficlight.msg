@@ -1,0 +1,1 @@
+bool traffic_light
