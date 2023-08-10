@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(traffic_control_system_detection)
+project(traffic_control_system_detection_cpp)
 
 # Find dependencies
 find_package(ament_cmake REQUIRED)

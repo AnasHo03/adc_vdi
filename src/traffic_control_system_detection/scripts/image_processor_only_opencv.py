@@ -66,18 +66,17 @@ class ImageProcessor(Node):
 
 
         # Publish the detections as ROS String message
-        result_msg = Signs()
+        self.result_msg = Signs()
         max_class_id = 6
         if scores:
             max_score_index = np.argmax(scores)
             #max_score = scores[max_score_index]
             #max_box = boxes[max_score_index]
             max_class_id = class_ids[max_score_index]
-            result_msg.sign_detected = True
+            self.result_msg.sign_detected = True
         else:
-            result_msg.sign_detected = False
+            self.result_msg.sign_detected = False
 
-        
         if max_class_id == 0:
             self.cross_parking = True
         elif max_class_id == 1:
@@ -92,14 +91,14 @@ class ImageProcessor(Node):
         elif max_class_id == 5:
             self.pit_out = True
             self.pit_in = False
-                
-        result_msg.cross_parking = self.cross_parking
-        result_msg.overtaking = self.overtaking
-        result_msg.pit_in = self.pit_in
-        result_msg.pit_out = self.pit_out
 
-        
-        self.publisher.publish(result_msg)
+        self.result_msg.cross_parking = self.cross_parking
+        self.result_msg.overtaking = self.overtaking
+        self.result_msg.pit_in = self.pit_in
+        self.result_msg.pit_out = self.pit_out
+
+        # Fix the line below to use self.result_msg
+        self.publisher.publish(self.result_msg)
 
             
 

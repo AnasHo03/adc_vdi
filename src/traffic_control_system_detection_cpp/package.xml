@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>traffic_control_system_detection</name>
+  <name>traffic_control_system_detection_cpp</name>
   <version>0.1.0</version>
   <description>ROS2 package for image processing</description>
 
