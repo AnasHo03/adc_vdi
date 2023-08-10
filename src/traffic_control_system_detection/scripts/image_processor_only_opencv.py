@@ -55,7 +55,7 @@ class ImageProcessor(Node):
         for i in range(rows):
             classes_scores = outputs[0][i][4:]
             (minScore, maxScore, minClassLoc, (x, maxClassIndex)) = cv2.minMaxLoc(classes_scores)
-            if maxScore >= 0.25:
+            if maxScore >= 0.5:
                 box = [
                     outputs[0][i][0] - (0.5 * outputs[0][i][2]), outputs[0][i][1] - (0.5 * outputs[0][i][3]),
                     outputs[0][i][2], outputs[0][i][3]]
@@ -74,17 +74,22 @@ class ImageProcessor(Node):
             #max_box = boxes[max_score_index]
             max_class_id = class_ids[max_score_index]
             self.result_msg.sign_detected = True
+            self.sign_height = boxes[max_score_index]
         else:
             self.result_msg.sign_detected = False
 
         if max_class_id == 0:
             self.cross_parking = True
+            self.parallel_parking = False
         elif max_class_id == 1:
-            self.overtaking = True
+            self.overtaking_allowed = True
+            self.overtaking_forbidden = False
         elif max_class_id == 2:
-            self.overtaking = False
+            self.overtaking_allowed = False
+            self.overtaking_forbidden = True
         elif max_class_id == 3:
             self.cross_parking = False
+            self.parallel_parking = True
         elif max_class_id == 4:
             self.pit_in = True
             self.pit_out = False
@@ -93,9 +98,12 @@ class ImageProcessor(Node):
             self.pit_in = False
 
         self.result_msg.cross_parking = self.cross_parking
-        self.result_msg.overtaking = self.overtaking
+        self.result_msg.parallel_parking = self.parallel_parking
+        self.result_msg.overtaking_allowed = self.overtaking_allowed
+        self.result_msg.overtaking_forbidden = self.overtaking_forbidden
         self.result_msg.pit_in = self.pit_in
         self.result_msg.pit_out = self.pit_out
+        self.result_msg.sign_height = self.sign_height
 
         # Fix the line below to use self.result_msg
         self.publisher.publish(self.result_msg)
