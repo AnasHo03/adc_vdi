@@ -35,17 +35,54 @@ def generate_launch_description():
         output='screen'
     )
 
-    # ackermann_to_vesc
+    # ackermann_to_vesc from f1tenth
+    # ackermann_to_vesc_node = Node(
+    #     package='vesc_ackermann',
+    #     executable='ackermann_to_vesc_node.launch.py',
+    #     name='ackermann_to_vesc',
+    #     output='screen',
+    # )
+
+    # ackermann_to_vesc from william
     ackermann_to_vesc_node = Node(
-        package='vesc_ackermann',
-        executable='ackermann_to_vesc_node.launch.py',
+        package='vehicle_control',
+        executable='ackermann_to_vesc.py',
         name='ackermann_to_vesc',
+        output='screen',
+        parameters=[control_config]
+    )
+    
+    # Lane recognition
+    lane_recognition_node = Node(
+        package='lane_recognition',
+        executable='lane_recognition',
+        name='lane_recognition',
         output='screen',
     )
 
+    # Line follower
+    line_follower_node = Node(
+        package='line_follower',
+        executable='line_follower',
+        name='line_follower',
+        output='screen',
+    )
+
+    # Micro-ROS Agent
+    micro_ros_agent_node = Node(
+        package='micro_ros_agent',
+        executable='micro_ros_agent',
+        name='micro_ros_agent',
+        arguments=['serial', '-b', '921600', '--dev', '/dev/stm32_nucleo'],
+        output='screen',
+    )
+    
     return LaunchDescription([
+        micro_ros_agent_node,
         vesc_driver_node,
-        twist_to_ackermann_node,
-        ackermann_to_vesc_node
+        # twist_to_ackermann_node,
+        ackermann_to_vesc_node,
+        lane_recognition_node,
+        line_follower_node
     ])
 
