@@ -5,9 +5,10 @@ import rclpy
 import signal
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDrive
-from std_msgs.msg import UInt8, UInt16MultiArray
+from std_msgs.msg import UInt8, Int16MultiArray
 from team_interfaces.msg import Lane
 from team_interfaces.msg import Emergency
+from team_interfaces.msg import Signs
 
 
 # Python dependancies
@@ -15,13 +16,13 @@ import numpy as np # Import the NumPy scientific computing library
 import math
 
 # Parameters general
-DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing
+DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing, 2 = overtaking
 DELAY_IN_FRAMES = 70
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 1
+MIN_THRUST = 1.0
 MAX_THRUST = 1.6
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
@@ -53,6 +54,7 @@ class LineFollower(Node):
         # Logic variables
         self.emergency_stop = False
         self.destroyed = False
+        self.overtaking_allowed = False
 
         # Variables
         self.center_offset = 0.0
@@ -62,20 +64,40 @@ class LineFollower(Node):
         self.integral_term = []
         self.integral_term_speed = 0.0
         self.start_ctr = 0
+        self.overtaking_allowed_sign_size = 0
+        self.overtaking_forbidden_sign_size = 0
+        self.uss_data_front = []  # Front-left, front-middle, front-right
+        
+                            # right-front, right back
+                            # back-right, back-middle, back_left
+                            # left-back, left-front 
 
         # Define messages
         self.ack_msg = AckermannDrive()
         
         # Initialize subscribers
-        #self.joy_sub = self.create_subscription(UInt16MultiArray, '/joy', self.emergency_shutdown_callback, 10)
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
         self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
+        self.lane_sub = self.create_subscription(Emergency, 'detected_signs', self.detected_signs_callback, 10)
+        self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, 1)
+
 
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
         
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
+    
+    def uss_callback(self, msg):
+        uss_data = msg.data[1]
+        print (uss_data)
+
+    def detected_signs_callback(self, msg):
+        # Change state
+        if DRIVE_MODE == 2 & msg.overtaking_allowed == True:
+            overtaking_allowed = True
+
+
 
     def lane_callback(self, msg):
         # Fetch current offset from message
@@ -116,7 +138,7 @@ class LineFollower(Node):
             # Publish Ackermann message after delay
             if self.start_ctr > DELAY_IN_FRAMES:
                 self.send_ackermann(steering_angle, thrust)
-            # Countdownpid
+            # Countdown
             elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
                 if DRIVE_MODE == 1:
                     self.get_logger().info("DRAG RACE MODE!")
@@ -202,9 +224,9 @@ class LineFollower(Node):
         if DRIVE_MODE == 1: # constant thrust for drag racing
             thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = steering_angle
+        ack_msg.steering_angle = 0.0 #steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = thrust #CONSTANT_THRUST 
+        ack_msg.speed = 0.0 #thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)

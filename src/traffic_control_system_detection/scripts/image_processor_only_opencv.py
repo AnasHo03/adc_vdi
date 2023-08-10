@@ -24,10 +24,12 @@ class ImageProcessor(Node):
         self.publisher = self.create_publisher(Signs,'detected_signs',10)
         self.cv_bridge = CvBridge()
         self.cross_parking = False
+        self.parallel_parking = False
         self.pit_in = False
         self.pit_out = False
-        self.overtaking = False
-
+        self.overtaking_allowed = False
+        self.overtaking_forbidden = False
+        self.sign_height = 0.0
 
     def process_image(self, msg):
         # Convert ROS Image message to OpenCV image
@@ -74,7 +76,8 @@ class ImageProcessor(Node):
             #max_box = boxes[max_score_index]
             max_class_id = class_ids[max_score_index]
             self.result_msg.sign_detected = True
-            self.sign_height = boxes[max_score_index]
+            self.sign_height = boxes[max_score_index][3]
+            print(self.sign_height)
         else:
             self.result_msg.sign_detected = False
 
@@ -103,7 +106,7 @@ class ImageProcessor(Node):
         self.result_msg.overtaking_forbidden = self.overtaking_forbidden
         self.result_msg.pit_in = self.pit_in
         self.result_msg.pit_out = self.pit_out
-        self.result_msg.sign_height = self.sign_height
+        self.result_msg.sign_height = float(self.sign_height)
 
         # Fix the line below to use self.result_msg
         self.publisher.publish(self.result_msg)

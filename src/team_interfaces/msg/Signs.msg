@@ -6,4 +6,4 @@ bool cross_parking # If false, parallel parking
 bool parallel_parking
 bool pit_in
 bool pit_out
-int sign_height
+float32 sign_height
