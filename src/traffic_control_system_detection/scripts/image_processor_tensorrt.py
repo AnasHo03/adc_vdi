@@ -86,7 +86,7 @@ SUFFIXS = ('.bmp', '.dng', '.jpeg', '.jpg', '.mpo', '.png', '.tif', '.tiff',
            '.webp', '.pfm')
 
 def path_to_list() -> List:
-    images_path = Path("/home/johannes/Desktop/Projekte/VDIADC/Training environment/gitrepo/adc/src/frame_samples_zed/31.jpeg")
+    images_path = Path("/home/johannes/Desktop/Projekte/VDIADC/Training environment/gitrepo/adc/src/frame_samples_zed")
     assert images_path.exists()
     if images_path.is_dir():
         images = [

@@ -144,6 +144,7 @@ class TRTEngine:
                 gpu = self.out_info[i].gpu
             outputs.append(cpu)
             output_gpu_ptrs.append(gpu)
+            print(gpu)
             self.bindings[j] = int(gpu)
 
         self.context.execute_async_v2(self.bindings, self.stream.handle)
