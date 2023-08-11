@@ -40,7 +40,7 @@ class ImageProcessor(Node):
         length = max((height, width))
         image = np.zeros((length, length, 3), np.uint8)
         image[0:height, 0:width] = cv_image
-        blob = cv2.dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True)    #blob = cuda_dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True) #*1
+        blob = cv2.dnn.blobFromImage(image, scalefactor=1 / 255, size=(320, 320), swapRB=True)    #blob = cuda_dnn.blobFromImage(image, scalefactor=1 / 255, size=(640, 640), swapRB=True) #*1
         self.model.setInput(blob)
 
         # Run inference
