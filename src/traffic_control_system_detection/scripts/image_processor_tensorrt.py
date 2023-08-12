@@ -5,12 +5,12 @@ import pycuda.driver as cuda
 import pycuda.autoinit
 import tensorrt as trt
 import random
-import matplotlib.pyplot as plt
 
-from PIL import Image
 from numpy import ndarray
 from typing import List, Tuple, Union
 from pathlib import Path
+
+
 
 TRT_LOGGER = trt.Logger()
 
@@ -86,7 +86,7 @@ SUFFIXS = ('.bmp', '.dng', '.jpeg', '.jpg', '.mpo', '.png', '.tif', '.tiff',
            '.webp', '.pfm')
 
 def path_to_list() -> List:
-    images_path = Path("/home/johannes/Desktop/Projekte/VDIADC/Training environment/gitrepo/adc/src/frame_samples_zed")
+    images_path = Path("/home/workspaces/ros2_ws/src/frame_samples_zed")
     assert images_path.exists()
     if images_path.is_dir():
         images = [
@@ -107,6 +107,9 @@ def main() -> None:
     H, W = Engine.inp_info[0].shape[-2:]
 
     images = path_to_list()
+
+
+    img_saving_counter = 0
 
     for image in images:
         bgr = cv2.imread(str(image))
@@ -139,10 +142,9 @@ def main() -> None:
                         0.75, [225, 255, 255],
                         thickness=2)
 
-        cv2.imshow('result', draw)
-        cv2.waitKey(0)
-
-
+        name = './src/frame_samples_yolo_processed/img_' + str(img_saving_counter) + '.jpeg'
+        cv2.imwrite(name, draw)
+        img_saving_counter += 1
 
 if __name__ == '__main__':
     main()

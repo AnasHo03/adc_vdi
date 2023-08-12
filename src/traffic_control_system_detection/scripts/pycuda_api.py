@@ -26,7 +26,7 @@ class Tensor:
 class TRTEngine:
 
     def __init__(self) -> None:
-        self.weight = Path('/home/johannes/Desktop/Projekte/VDIADC/trainV12/weights/best.engine')
+        self.weight = Path('/home/workspaces/ros2_ws/src/traffic_control_system_detection/model_files/best.engine')
         self.stream = cuda.Stream(0)
         self.__init_engine()
         self.__init_bindings()
