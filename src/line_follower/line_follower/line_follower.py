@@ -24,8 +24,8 @@ DELAY_IN_FRAMES = 70
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 0.7 #1.0
-MAX_THRUST = 1.3 # 1.6
+MIN_THRUST = 0.5 #0.7 #1.0
+MAX_THRUST = 1.0 #1.3 #1.6
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
 KP_LO = 0.018 # Proportional gain constant
@@ -39,7 +39,7 @@ KD_DRAG_RACING = 0.0040 # drag racing KD
 SIGMOID_SLOPE = 7.5
 SIGMOID_X_OFFSET = 0.9
 SIGMOID_YMAX_OFFSET = 0.25
-USS_PUNISHMENT_MULTIPLIER = 50.0
+USS_PUNISHMENT_MULTIPLIER = 0.001
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
@@ -193,8 +193,8 @@ class LineFollower(Node):
         proportional_term = self.sigmoid_controller(norm_heading_angle)
 
         # Apply punishment term if too close to oponent car
-        if DRIVE_MODE == 2 and self.uss_data_front[1] <= 16 and self.uss_data_front[1] != -1:
-            self.punishment_term =  USS_PUNISHMENT_MULTIPLIER/(self.uss_data_front[1]+1) * self.sigmoid_controller(norm_heading_angle)
+        if DRIVE_MODE == 2 and self.uss_data_front[1] <= 10 and self.uss_data_front[1] != -1 and self.uss_data_front[1] != -2:
+            self.punishment_term =  1/(USS_PUNISHMENT_MULTIPLIER*self.uss_data_front[1]+1) * self.sigmoid_controller(norm_heading_angle)
             proportional_term = proportional_term - self.punishment_term
             
 
@@ -246,7 +246,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.0# thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
