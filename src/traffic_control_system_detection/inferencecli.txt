@@ -1,0 +1,1 @@
+yolo task=detect mode=predict model=/home/mxck/adc/src/traffic_control_system_detection/model_files/best.engine source=/home/mxck/adc/src/frame_samples_zed device=0 imgsz=320
