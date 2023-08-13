@@ -17,7 +17,7 @@ class ImageProcessor(Node):
     def __init__(self):
         super().__init__('image_processor')
         #set up model
-        model_path = '/home/mxck/adc/src/traffic_control_system_detection/model_files/best.engine'
+        model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/best.pt'
         self.model = YOLO(model_path, task = 'detect')  # pretrained YOLOv8n model
         self.subscription = self.create_subscription(CompressedImage,'/zed/zed_node/left/image_rect_color/compressed',self.process_image,10)
         self.publisher = self.create_publisher(Signs,'detected_signs',10)
@@ -47,7 +47,7 @@ class ImageProcessor(Node):
         height=[]
         class_ids=[]
 
-        for i in range(boxes):
+        for i in range(len(boxes)):
             scores.append(boxes[i][4])
             height.append(boxes[i][3])
             class_ids.append(boxes[i][5])
