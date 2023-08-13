@@ -7,7 +7,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights',
                         type=str,
-                        default="best.onnx",
+                        default='/home/mxck/adc/src/traffic_control_system_detection/model_files/best.onnx',
                         help='Weights file')
     parser.add_argument('--iou-thres',
                         type=float,
