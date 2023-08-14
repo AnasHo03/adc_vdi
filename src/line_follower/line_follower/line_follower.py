@@ -22,8 +22,8 @@ DELAY_IN_FRAMES = 70
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 1.0
-MAX_THRUST = 1.6
+MIN_THRUST = 0.8
+MAX_THRUST = 1.3
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
 KP_LO = 0.018 # Proportional gain constant
@@ -78,7 +78,7 @@ class LineFollower(Node):
         # Initialize subscribers
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
         self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
-        self.lane_sub = self.create_subscription(Emergency, 'detected_signs', self.detected_signs_callback, 10)
+        self.lane_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
         self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, 1)
 
 
@@ -224,9 +224,9 @@ class LineFollower(Node):
         if DRIVE_MODE == 1: # constant thrust for drag racing
             thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = 0.0 #steering_angle
+        ack_msg.steering_angle = steering_angle
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = 0.0 #thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
