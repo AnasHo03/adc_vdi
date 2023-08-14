@@ -1,0 +1,1 @@
+everything has to run in Docker except the image_processor_tensorrt.py script und das traffic_control_system_detection package
