@@ -4,26 +4,28 @@ from platform import node
 import rclpy
 import signal
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from ackermann_msgs.msg import AckermannDrive
 from std_msgs.msg import UInt8, Int16MultiArray
 from team_interfaces.msg import Lane
 from team_interfaces.msg import Emergency
 from team_interfaces.msg import Signs
 
-
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
 import math
 
+
+
 # Parameters general
-DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing, 2 = overtaking
+DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking
 DELAY_IN_FRAMES = 70
 
 # Parameters driving
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 0.8
-MAX_THRUST = 1.3
+MIN_THRUST = 0.5 #0.7 #1.0
+MAX_THRUST = 1.0 #1.3 #1.6
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
 KP_LO = 0.018 # Proportional gain constant
@@ -37,6 +39,7 @@ KD_DRAG_RACING = 0.0040 # drag racing KD
 SIGMOID_SLOPE = 7.5
 SIGMOID_X_OFFSET = 0.9
 SIGMOID_YMAX_OFFSET = 0.25
+USS_PUNISHMENT_MULTIPLIER = 0.001
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
@@ -66,22 +69,28 @@ class LineFollower(Node):
         self.start_ctr = 0
         self.overtaking_allowed_sign_size = 0
         self.overtaking_forbidden_sign_size = 0
-        self.uss_data_front = []  # Front-left, front-middle, front-right
-        
+        self.uss_data_front = np.full(3, 15)  # Front-left, front-middle, front-right
                             # right-front, right back
                             # back-right, back-middle, back_left
                             # left-back, left-front 
+        self.punishment_term = 0
 
         # Define messages
         self.ack_msg = AckermannDrive()
         
+        # Define a compatible QoS profile
+        qos_profile = QoSProfile(
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,  # Change to BEST_EFFORT
+            history=QoSHistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         # Initialize subscribers
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
         self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
         self.lane_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
-        self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, 1)
-
-
+        self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
+        
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
         
@@ -89,8 +98,9 @@ class LineFollower(Node):
         signal.signal(signal.SIGINT, self.shutdown_callback)
     
     def uss_callback(self, msg):
-        uss_data = msg.data[1]
-        print (uss_data)
+        self.uss_data_front = msg.data[7:10]
+        self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+
 
     def detected_signs_callback(self, msg):
         # Change state
@@ -153,7 +163,7 @@ class LineFollower(Node):
         
 
         # Signal (terms combined) and proportional
-        if DRIVE_MODE == 0:
+        if DRIVE_MODE == 0 or DRIVE_MODE == 2:
             proportional_term = KP_LO * current_error
             derivative_term = KD * (current_error - previous_error)
             signal = proportional_term + derivative_term
@@ -181,6 +191,16 @@ class LineFollower(Node):
         # Proportional term
         norm_heading_angle = abs(abs(heading_angle) - 1.3)
         proportional_term = self.sigmoid_controller(norm_heading_angle)
+
+        # Apply punishment term if too close to oponent car
+        if DRIVE_MODE == 2 and self.uss_data_front[1] <= 10 and self.uss_data_front[1] != -1 and self.uss_data_front[1] != -2:
+            self.punishment_term =  1/(USS_PUNISHMENT_MULTIPLIER*self.uss_data_front[1]+1) * self.sigmoid_controller(norm_heading_angle)
+            proportional_term = proportional_term - self.punishment_term
+            
+
+        self.get_logger().info('punishment term:' + str(self.punishment_term))
+        self.get_logger().info('proportional_term:' + str(proportional_term))
+
         # proportional_term = KP_THRUST * norm_heading_angle
         # Clip signal
         # clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
