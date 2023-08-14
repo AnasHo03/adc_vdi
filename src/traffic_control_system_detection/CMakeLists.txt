@@ -12,6 +12,7 @@ find_package(OpenCV REQUIRED)
 # Set the path to your Python script
 set(script_files 
   "scripts/image_processor_only_opencv.py"
+  "scripts/image_processor_tensorrt.py"
   "scripts/publishing_usbimg.py"
   "scripts/listener_opencv.py"
   "scripts/traffic_light.py"

@@ -88,7 +88,7 @@ class LineFollower(Node):
         # Initialize subscribers
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
         self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
-        self.lane_sub = self.create_subscription(Emergency, 'detected_signs', self.detected_signs_callback, 10)
+        self.lane_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
         self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
         
         # Initialize publiher
