@@ -6,6 +6,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 from team_interfaces.msg import Signs
+from std_msgs.msg import Bool
 import os
 from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
@@ -21,6 +22,7 @@ class ImageProcessor(Node):
         self.model = YOLO(model_path, task = 'detect')  # pretrained YOLOv8n model
         self.subscription = self.create_subscription(CompressedImage,'/zed/zed_node/left/image_rect_color/compressed',self.process_image,10)
         self.publisher = self.create_publisher(Signs,'detected_signs',10)
+        self.publisher_dummy = self.create_publisher(Bool,'dummy',10)
         self.cv_bridge = CvBridge()
         self.cross_parking = False
         self.parallel_parking = False
@@ -32,7 +34,7 @@ class ImageProcessor(Node):
         self.ctr = 0
 
     def process_image(self, msg):
-        if self.ctr % 2:
+        if self.ctr % 4 == 0:
             # Convert ROS Image message to OpenCV image
             cv_image = self.cv_bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
 
@@ -56,6 +58,9 @@ class ImageProcessor(Node):
 
             # Publish the detections as ROS String message
             self.result_msg = Signs()
+
+            self.rand_msg = Bool()
+
             max_class_id = 6
             if scores:
                 max_score_index = np.argmax(scores)
@@ -92,8 +97,10 @@ class ImageProcessor(Node):
             self.result_msg.pit_in = self.pit_in
             self.result_msg.pit_out = self.pit_out
             self.result_msg.sign_height = float(self.sign_height)
-
+            
             self.publisher.publish(self.result_msg)
+
+            self.publisher_dummy.publish(self.rand_msg)
         self.ctr += 1
 
 def main(args=None):

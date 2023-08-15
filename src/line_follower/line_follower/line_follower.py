@@ -21,25 +21,36 @@ import math
 DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking
 DELAY_IN_FRAMES = 70
 
-# Parameters driving
+# Parameters steering
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-MIN_THRUST = 0.5 #0.7 #1.0
-MAX_THRUST = 1.0 #1.3 #1.6
-CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
-CONSTANT_THRUST_DRAG = 4.0
 KP_LO = 0.018 # Proportional gain constant
 KP_DRAG_RACING = 0.0195   # drag racing KP
-KP_THRUST = 1.0
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
 KD = 0.0 #0.00050    # Derivative gain
 KD_DRAG_RACING = 0.0040 # drag racing KD
+
+
+# Parameters speed
+MIN_THRUST = 0.7 #0.5 #0.7 #1.0
+MAX_THRUST = 1.3 #1.0 #1.3 #1.6
+CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
+CONSTANT_THRUST_DRAG = 4.0
+KP_THRUST = 1.0
 SIGMOID_SLOPE = 7.5
 SIGMOID_X_OFFSET = 0.9
 SIGMOID_YMAX_OFFSET = 0.25
-USS_PUNISHMENT_MULTIPLIER = 0.001
+USS_PUNISHMENT_MULTIPLIER = 0.05
+
+# Parameters ultra-sonic sensors
+USS_MAX_DRAW_FRONT_LEFT = 12
+USS_MAX_DRAW_FRONT_MIDDLE = 20 
+USS_MAX_DRAW_FRONT_RIGHT = 12
+
+# Parameters signs
+THRESHOLD_SIGN_HEIGHT = 100
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
@@ -57,7 +68,7 @@ class LineFollower(Node):
         # Logic variables
         self.emergency_stop = False
         self.destroyed = False
-        self.overtaking_allowed = False
+        self.off_track_mode = False
 
         # Variables
         self.center_offset = 0.0
@@ -67,13 +78,12 @@ class LineFollower(Node):
         self.integral_term = []
         self.integral_term_speed = 0.0
         self.start_ctr = 0
-        self.overtaking_allowed_sign_size = 0
-        self.overtaking_forbidden_sign_size = 0
         self.uss_data_front = np.full(3, 15)  # Front-left, front-middle, front-right
                             # right-front, right back
                             # back-right, back-middle, back_left
                             # left-back, left-front 
         self.punishment_term = 0
+        self.min_front_distance = 0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -87,9 +97,10 @@ class LineFollower(Node):
 
         # Initialize subscribers
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
-        self.lane_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
-        self.lane_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
-        self.lane_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
+        self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
+        self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
+        self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
+        self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
         
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
@@ -98,15 +109,52 @@ class LineFollower(Node):
         signal.signal(signal.SIGINT, self.shutdown_callback)
     
     def uss_callback(self, msg):
+        considered_distances = [100, 100, 100]
+
         self.uss_data_front = msg.data[7:10]
-        self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        if self.uss_data_front[0] <= USS_MAX_DRAW_FRONT_LEFT and self.uss_data_front[0] != -1 and self.uss_data_front[0] != -2:
+            considered_distances[0] = self.uss_data_front[0]
+        if self.uss_data_front [1] <= USS_MAX_DRAW_FRONT_MIDDLE and self.uss_data_front[1] != -1 and self.uss_data_front[1] != -2:
+            considered_distances[1] = self.uss_data_front[1]
+        if self.uss_data_front[2] <= USS_MAX_DRAW_FRONT_RIGHT and self.uss_data_front[2] != -1 and self.uss_data_front[2] != -2:
+            considered_distances[2] = self.uss_data_front[2]
+       
+        self.min_front_distance = min(considered_distances)
+       
+        #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
+        #self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
+        #self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        #self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
+
 
 
     def detected_signs_callback(self, msg):
         # Change state
-        if DRIVE_MODE == 2 & msg.overtaking_allowed == True:
-            overtaking_allowed = True
+        if msg.parallel_parking == True and msg.sign_detected == True:
+           
+            self.get_logger().info('Overtaking allowed! Height:' + str(msg.sign_height))
 
+            if msg.sign_height > THRESHOLD_SIGN_HEIGHT:
+                #self.emergency_stop = True
+                
+                self.go_off_track()
+                self.off_track_mode = True
+
+                self.go_back_on_track()
+
+        return
+
+    def go_off_track(self):
+        return
+
+    def go_back_on_track(self):
+        return
+
+    def line_follow_off_track(self, msg):
+        if self.off_track_mode == True:
+            return
+        self.off_track_mode = False
+        return
 
 
     def lane_callback(self, msg):
@@ -193,19 +241,20 @@ class LineFollower(Node):
         proportional_term = self.sigmoid_controller(norm_heading_angle)
 
         # Apply punishment term if too close to oponent car
-        if DRIVE_MODE == 2 and self.uss_data_front[1] <= 10 and self.uss_data_front[1] != -1 and self.uss_data_front[1] != -2:
-            self.punishment_term =  1/(USS_PUNISHMENT_MULTIPLIER*self.uss_data_front[1]+1) * self.sigmoid_controller(norm_heading_angle)
+        if DRIVE_MODE == 2 and self.min_front_distance != 100:
+            self.punishment_term =  1/(USS_PUNISHMENT_MULTIPLIER*self.min_front_distance+1) * self.sigmoid_controller(norm_heading_angle)
             proportional_term = proportional_term - self.punishment_term
             
 
-        self.get_logger().info('punishment term:' + str(self.punishment_term))
-        self.get_logger().info('proportional_term:' + str(proportional_term))
+        # self.get_logger().info('punishment term:' + str(self.punishment_term))
+        # self.get_logger().info('proportional_term:' + str(proportional_term))
 
         # proportional_term = KP_THRUST * norm_heading_angle
         # Clip signal
         # clipped_signal = np.clip(proportional_term, MIN_THRUST, MAX_THRUST)
         # return clipped_signal
         return proportional_term
+
 
     def filter_signal_offset(self, offset):
         if not math.isnan(offset):  # Check if offset is NaN
@@ -232,7 +281,6 @@ class LineFollower(Node):
             self.heading_array.pop(0)  # Remove the oldest element from the array
         if len(self.heading_array) == NUM_ELEMENTS_TO_AVERAGE_HEADING:
             average = sum(self.heading_array[0:NUM_ELEMENTS_TO_CONSIDER_HEADING]) / NUM_ELEMENTS_TO_CONSIDER_HEADING
-            #self.get_logger().info('Average heading:' + str(average))
             return (average)
         else:
             return (heading)
