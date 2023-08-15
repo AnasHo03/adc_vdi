@@ -12,10 +12,12 @@ class EmergencyStopPublisher(Node):
         super().__init__('emergency_stop_publisher')
         self.publisher_ = self.create_publisher(Emergency, 'emergency', 10)
         self.space_pressed = False
+        self.o_pressed = False
 
     def publish_emergency(self):
         msg = Emergency()
         msg.emergency_stop = self.space_pressed
+        msg.phase_change = self.o_pressed
         self.publisher_.publish(msg)
 
     def run(self):
@@ -23,11 +25,18 @@ class EmergencyStopPublisher(Node):
             key = getch.getch()
             if key == ' ':
                 self.space_pressed = True
+                self.o_pressed = False
                 self.get_logger().info('Publishing emergency stop once!')
                 self.publish_emergency()
-            if key == 'r':
+            elif key == 'r':
                 self.space_pressed = False
+                self.o_pressed = False
                 self.get_logger().info('Publishing resume once!')
+                self.publish_emergency()
+            elif key == 'o':
+                self.space_pressed = False
+                self.o_pressed = True
+                self.get_logger().info('Publishing manual overtaking once!')
                 self.publish_emergency()
 
 

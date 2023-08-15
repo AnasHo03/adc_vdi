@@ -14,6 +14,7 @@ from team_interfaces.msg import Signs
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
 import math
+import time
 
 
 
@@ -31,11 +32,14 @@ KI_DRAG_RACING = 0.0004 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
 KD = 0.0 #0.00050    # Derivative gain
 KD_DRAG_RACING = 0.0040 # drag racing KD
-
+STEERING_BIAS = -0.021
+HEADING_ANGLE_MULTIPLIER = -4
+HEADING_ANGLE_MULTIPLIER_SQUARE = -6
 
 # Parameters speed
-MIN_THRUST = 0.7 #0.5 #0.7 #1.0
-MAX_THRUST = 1.3 #1.0 #1.3 #1.6
+MIN_THRUST = 1.0 #0.5 #0.7 #1.0
+MAX_THRUST = 1.6 #1.0 #1.3 #1.6
+MAX_OVERTAKING_THRUST = 4.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 4.0
 KP_THRUST = 1.0
@@ -50,12 +54,17 @@ USS_MAX_DRAW_FRONT_MIDDLE = 20
 USS_MAX_DRAW_FRONT_RIGHT = 12
 
 # Parameters signs
-THRESHOLD_SIGN_HEIGHT = 100
+THRESHOLD_SIGN_HEIGHT = 245
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
 NUM_ELEMENTS_TO_AVERAGE_HEADING = 10
 NUM_ELEMENTS_TO_CONSIDER_HEADING = 5 # must be smaller than NUM_ELEMENTS_TO_AVERAGE_HEADING
+NUM_ELEMENTS_TO_AVERAGE_THRUST = 5
+
+# Parameters overtaking
+OVERTAKING_LANE_LENGTH = 4.0
+LEFT_OVERTAKE = True #True means left, false means right
 
 class LineFollower(Node):
     def __init__(self):
@@ -64,6 +73,7 @@ class LineFollower(Node):
         # Variables
         self.offset_array = []
         self.heading_array = []
+        self.thrust_array = []
 
         # Logic variables
         self.emergency_stop = False
@@ -84,6 +94,8 @@ class LineFollower(Node):
                             # left-back, left-front 
         self.punishment_term = 0
         self.min_front_distance = 0
+        self.thrust = 0.0
+        self.average_thrust = 0.0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -97,7 +109,7 @@ class LineFollower(Node):
 
         # Initialize subscribers
         self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
-        self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
+        # self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
         self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
         self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
@@ -130,31 +142,122 @@ class LineFollower(Node):
 
     def detected_signs_callback(self, msg):
         # Change state
-        if msg.parallel_parking == True and msg.sign_detected == True:
+        if (msg.cross_parking == True or msg.parallel_parking == True) and msg.sign_detected == True:
            
             self.get_logger().info('Overtaking allowed! Height:' + str(msg.sign_height))
 
             if msg.sign_height > THRESHOLD_SIGN_HEIGHT:
-                #self.emergency_stop = True
+                #self.overtake_maneuver_initiated = True
                 
                 self.go_off_track()
-                self.off_track_mode = True
-
+                self.line_follow_off_track()
                 self.go_back_on_track()
 
         return
 
-    def go_off_track(self):
-        return
+    def go_off_track(self, current_thrust, overtake_left):
+        ack_msg = AckermannDrive()
+        hardcode_steer = 0.35
+        hardcode_thrust = 1.5
+        t = 0.7 / (current_thrust + 0.1)
+        if t > 1.0:
+            t = 1.0
+        # HARDCODED SEQUENCE START
+        # going out
+        if overtake_left:
+            ack_msg.steering_angle = -hardcode_steer
+        else:
+            ack_msg.steering_angle = hardcode_steer
+        ack_msg.speed = hardcode_thrust * current_thrust 
 
-    def go_back_on_track(self):
-        return
-
-    def line_follow_off_track(self, msg):
-        if self.off_track_mode == True:
+        # t0 = time.time()
+        # while (time.time() - t0) < t:
+        #     self.ackermann_pub.publish(ack_msg)
+        self.ackermann_pub.publish(ack_msg)
+        time.sleep(t)
+        if self.emergency_stop:
             return
-        self.off_track_mode = False
+
+        # restraighten
+        if overtake_left:
+            ack_msg.steering_angle = hardcode_steer + STEERING_BIAS
+        else:
+            ack_msg.steering_angle = -hardcode_steer + STEERING_BIAS
+        ack_msg.speed = hardcode_thrust * current_thrust 
+
+        # t0 = time.time()
+        # while (time.time() - t0) < t:
+        #     self.ackermann_pub.publish(ack_msg)
+        self.ackermann_pub.publish(ack_msg)
+        time.sleep(t)
+        if self.emergency_stop:
+            return
+
+        # HARDCODED SEQUENCE END
         return
+
+    def line_follow_off_track(self, current_thrust):
+        ack_msg = AckermannDrive()
+        hardcode_thrust = 2
+        t = 0.0
+        while True:
+            delta_speed = (current_thrust*(hardcode_thrust - 1))
+            t = 1 / (delta_speed + 0.1)
+            if delta_speed * t < OVERTAKING_LANE_LENGTH:
+                break
+            else:
+                hardcode_thrust = hardcode_thrust * 1.2
+        ack_msg.steering_angle = 0.0 + STEERING_BIAS
+        ack_msg.speed = hardcode_thrust * current_thrust 
+        if ack_msg.speed > MAX_OVERTAKING_THRUST:
+            ack_msg.speed = MAX_OVERTAKING_THRUST
+
+        t0 = time.time()
+        while (time.time() - t0) < t:
+            self.ackermann_pub.publish(ack_msg)
+        if self.emergency_stop:
+            return
+
+        return
+
+    def go_back_on_track(self, current_thrust, overtake_left):
+        ack_msg = AckermannDrive()
+        hardcode_steer = 0.35
+        hardcode_thrust = 1.5
+        t = 0.7 / (current_thrust + 0.1)
+        if t > 1.0:
+            t = 1.0
+        # HARDCODED SEQUENCE START
+        # going out
+        if overtake_left:
+            ack_msg.steering_angle = hardcode_steer + STEERING_BIAS
+        else:
+            ack_msg.steering_angle = -hardcode_steer + STEERING_BIAS
+        ack_msg.speed = hardcode_thrust * current_thrust 
+
+        # t0 = time.time()
+        # while (time.time() - t0) < t:
+        #     self.ackermann_pub.publish(ack_msg)
+        self.ackermann_pub.publish(ack_msg)
+        time.sleep(t)
+        if self.emergency_stop:
+            return
+            
+        # restraighten
+        # if overtake_left:
+        #     ack_msg.steering_angle = -hardcode_steer
+        # else:
+        #     ack_msg.steering_angle = hardcode_steer
+        # ack_msg.speed = hardcode_thrust * current_thrust 
+
+        # t0 = time.time()
+        # while (time.time() - t0) < t:
+        #     self.ackermann_pub.publish(ack_msg)
+        # if self.emergency_stop:
+        #     return
+        # HARDCODED SEQUENCE END
+        return
+
 
 
     def lane_callback(self, msg):
@@ -179,13 +282,17 @@ class LineFollower(Node):
         if self.emergency_stop == False:
             # Filter signal
             self.center_offset = self.filter_signal_offset(self.center_offset)
+            self.average_thrust = self.filter_signal_thrust(self.thrust)
             self.heading_angle = self.filter_signal_heading(self.heading_angle)
+
+            # Flexible offset point depending on heading angle to bank sharper on curves
+            self.center_offset = self.center_offset + HEADING_ANGLE_MULTIPLIER * self.heading_angle + HEADING_ANGLE_MULTIPLIER_SQUARE * self.heading_angle * abs(self.heading_angle)
 
             # Calculate steering angle with PID 
             steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
 
             # Calculate thrust
-            thrust = self.speed_controller(self.heading_angle)
+            self.thrust = self.speed_controller(self.heading_angle)
 
             # Update previous offset and heading if offset is NaN
             if not math.isnan(self.center_offset):
@@ -195,7 +302,7 @@ class LineFollower(Node):
 
             # Publish Ackermann message after delay
             if self.start_ctr > DELAY_IN_FRAMES:
-                self.send_ackermann(steering_angle, thrust)
+                self.send_ackermann(steering_angle, self.thrust)
             # Countdown
             elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
                 if DRIVE_MODE == 1:
@@ -203,6 +310,8 @@ class LineFollower(Node):
 
                 self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
             self.start_ctr += 1
+            if self.start_ctr == DELAY_IN_FRAMES:
+                self.emergency_stop = True 
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero
@@ -271,6 +380,17 @@ class LineFollower(Node):
         else:
             return (offset)
 
+    def filter_signal_thrust(self, thrust):
+        self.thrust_array.append(self.thrust)
+        if len(self.thrust_array) > NUM_ELEMENTS_TO_AVERAGE_THRUST:
+            self.thrust_array.pop(0)  # Remove the oldest element from the array
+        if len(self.thrust_array) == NUM_ELEMENTS_TO_AVERAGE_THRUST:
+            average = sum(self.thrust_array) / NUM_ELEMENTS_TO_AVERAGE_THRUST
+            #self.get_logger().info('Average offset:' + str(average))
+            return (average)
+        else:
+            return (thrust)
+
     def filter_signal_heading(self, heading):
         if not math.isnan(heading):  # Check if offset is NaN
             self.heading_array.append(heading)
@@ -292,7 +412,7 @@ class LineFollower(Node):
         if DRIVE_MODE == 1: # constant thrust for drag racing
             thrust = CONSTANT_THRUST_DRAG
         ack_msg = AckermannDrive()
-        ack_msg.steering_angle = steering_angle
+        ack_msg.steering_angle = steering_angle + STEERING_BIAS
         ack_msg.steering_angle_velocity = 0.0
         ack_msg.speed = thrust #CONSTANT_THRUST 
         ack_msg.acceleration = 0.0
@@ -328,13 +448,19 @@ class LineFollower(Node):
             self.get_logger().info('EMERGENCY STOP!')
             # Send ackermann_halt for 2 second
             t0 = self.get_clock().now().to_msg().sec
-            t_close = 2
+            t_close = 1
             while (self.get_clock().now().to_msg().sec - t0) < t_close:
                 self.send_ackermann_halt()
         else: 
             self.get_logger().info('Resuming!')
             self.emergency_stop = False
         
+        if msg.phase_change == True:
+            self.get_logger().info('START MANEOUIVER!')
+            self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
+            self.line_follow_off_track(self.average_thrust)
+            self.go_back_on_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
+
         ## Alternative for RC
         # if joy_msg.buttons == 2:
         #     self.emergency_stop = True
