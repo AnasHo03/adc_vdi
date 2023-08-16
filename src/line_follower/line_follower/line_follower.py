@@ -19,7 +19,7 @@ import time
 
 
 # Parameters general
-DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking
+DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking, 3 = park out cross
 DELAY_IN_FRAMES = 70
 
 # Parameters steering
@@ -149,9 +149,9 @@ class LineFollower(Node):
             if msg.sign_height > THRESHOLD_SIGN_HEIGHT:
                 #self.overtake_maneuver_initiated = True
                 
-                self.go_off_track()
-                self.line_follow_off_track()
-                self.go_back_on_track()
+                self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
+                self.line_follow_off_track(self.average_thrust)
+                self.go_back_on_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
 
         return
 
@@ -279,39 +279,56 @@ class LineFollower(Node):
         #     self.get_logger().info('I detect no    lane !')
 
         ## Only proceed if emergency stop is not triggered
+
         if self.emergency_stop == False:
-            # Filter signal
-            self.center_offset = self.filter_signal_offset(self.center_offset)
-            self.average_thrust = self.filter_signal_thrust(self.thrust)
-            self.heading_angle = self.filter_signal_heading(self.heading_angle)
+            if DRIVE_MODE in [0,1,2]:
+                # Filter signal
+                self.center_offset = self.filter_signal_offset(self.center_offset)
+                self.average_thrust = self.filter_signal_thrust(self.thrust)
+                self.heading_angle = self.filter_signal_heading(self.heading_angle)
 
-            # Flexible offset point depending on heading angle to bank sharper on curves
-            self.center_offset = self.center_offset + HEADING_ANGLE_MULTIPLIER * self.heading_angle + HEADING_ANGLE_MULTIPLIER_SQUARE * self.heading_angle * abs(self.heading_angle)
+                # Flexible offset point depending on heading angle to bank sharper on curves
+                self.center_offset = self.center_offset + HEADING_ANGLE_MULTIPLIER * self.heading_angle + HEADING_ANGLE_MULTIPLIER_SQUARE * self.heading_angle * abs(self.heading_angle)
 
-            # Calculate steering angle with PID 
-            steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
+                # Calculate steering angle with PID 
+                steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
 
-            # Calculate thrust
-            self.thrust = self.speed_controller(self.heading_angle)
+                # Calculate thrust
+                self.thrust = self.speed_controller(self.heading_angle)
 
-            # Update previous offset and heading if offset is NaN
-            if not math.isnan(self.center_offset):
-                self.previous_center_offset = self.center_offset
-            if not math.isnan(self.heading_angle):
-                self.previous_heading = self.heading_angle
+                # Update previous offset and heading if offset is NaN
+                if not math.isnan(self.center_offset):
+                    self.previous_center_offset = self.center_offset
+                if not math.isnan(self.heading_angle):
+                    self.previous_heading = self.heading_angle
 
-            # Publish Ackermann message after delay
-            if self.start_ctr > DELAY_IN_FRAMES:
-                self.send_ackermann(steering_angle, self.thrust)
-            # Countdown
-            elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
-                if DRIVE_MODE == 1:
-                    self.get_logger().info("DRAG RACE MODE!")
+                # Publish Ackermann message after delay
+                if self.start_ctr > DELAY_IN_FRAMES:
+                    self.send_ackermann(steering_angle, self.thrust)
+                # Countdown
+                elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
+                    if DRIVE_MODE == 1:
+                        self.get_logger().info("DRAG RACE MODE!")
 
-                self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
-            self.start_ctr += 1
-            if self.start_ctr == DELAY_IN_FRAMES:
-                self.emergency_stop = True 
+                    self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
+                self.start_ctr += 1
+                if self.start_ctr == DELAY_IN_FRAMES:
+                    self.emergency_stop = True 
+            elif DRIVE_MODE == 3:
+
+                # Publish Ackermann message after delay
+                if self.start_ctr > DELAY_IN_FRAMES:
+                    # Hardcoded stuff
+                    self.send_ackermann(0, 0.7)
+                # Countdown
+                elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
+                    if DRIVE_MODE == 1:
+                        self.get_logger().info("DRAG RACE MODE!")
+
+                    self.get_logger().info(str((DELAY_IN_FRAMES - self.start_ctr) / 13))
+                self.start_ctr += 1
+                if self.start_ctr == DELAY_IN_FRAMES:
+                    self.emergency_stop = True 
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero

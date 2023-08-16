@@ -6,6 +6,7 @@
         general:
             camera_model: "zed2i"
             camera_name: "zed" # usually overwritten by launch file
+            grab_frame_rate: 29
 
         depth:
             min_depth: 0.2 
