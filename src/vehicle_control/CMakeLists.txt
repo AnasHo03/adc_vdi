@@ -31,6 +31,7 @@ install(PROGRAMS
   ${PROJECT_NAME}/rc_to_joy.py
   ${PROJECT_NAME}/ackermann_to_vesc.py
   ${PROJECT_NAME}/emergency_stop_publisher.py
+  ${PROJECT_NAME}/trigger_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
