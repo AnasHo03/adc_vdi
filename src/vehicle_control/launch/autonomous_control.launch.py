@@ -82,7 +82,7 @@ def generate_launch_description():
         vesc_driver_node,
         # twist_to_ackermann_node,
         ackermann_to_vesc_node,
-        lane_recognition_node,
+        #lane_recognition_node,
         line_follower_node
     ])
 

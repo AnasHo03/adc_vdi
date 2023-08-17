@@ -25,27 +25,27 @@ DELAY_IN_FRAMES = 70
 # Parameters steering
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-KP_LO = 0.018 # Proportional gain constant
-KP_DRAG_RACING = 0.0195   # drag racing KP
+KP_LO = 0.016/1.4 # Proportional gain constant
+KP_DRAG_RACING = 0.0195 / 1.4   # drag racing KP
 KI = 0.0001    # Integral gain
-KI_DRAG_RACING = 0.0004 # drag racing KI
+KI_DRAG_RACING = 0.0004 / 1.4 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
 KD = 0.0 #0.00050    # Derivative gain
-KD_DRAG_RACING = 0.0040 # drag racing KD
+KD_DRAG_RACING  = 0.0050 / 1.4 # drag racing KD
 STEERING_BIAS = -0.021
-HEADING_ANGLE_MULTIPLIER = -4
-HEADING_ANGLE_MULTIPLIER_SQUARE = -6
+HEADING_ANGLE_MULTIPLIER = -3
+HEADING_ANGLE_MULTIPLIER_SQUARE = -5
 
 # Parameters speed
-MIN_THRUST = 1.0 #0.5 #0.7 #1.0
-MAX_THRUST = 1.6 #1.0 #1.3 #1.6
+MIN_THRUST = 0.75  #Timed trial: 0.7 / 0.5
+MAX_THRUST = 1.2  #Timed trial: 1.4 / 1.0 
 MAX_OVERTAKING_THRUST = 4.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
-CONSTANT_THRUST_DRAG = 4.0
+CONSTANT_THRUST_DRAG = 2.5
 KP_THRUST = 1.0
-SIGMOID_SLOPE = 7.5
-SIGMOID_X_OFFSET = 0.9
-SIGMOID_YMAX_OFFSET = 0.25
+SIGMOID_SLOPE = 4
+SIGMOID_X_OFFSET = 1.04
+SIGMOID_YMAX_OFFSET = 0.45
 USS_PUNISHMENT_MULTIPLIER = 0.05
 
 # Parameters ultra-sonic sensors
@@ -54,7 +54,8 @@ USS_MAX_DRAW_FRONT_MIDDLE = 20
 USS_MAX_DRAW_FRONT_RIGHT = 12
 
 # Parameters signs
-THRESHOLD_SIGN_HEIGHT = 245
+THRESHOLD_SIGN_HEIGHT_MIN = 350
+THRESHOLD_SIGN_HEIGHT_MAX = 450
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
@@ -64,7 +65,11 @@ NUM_ELEMENTS_TO_AVERAGE_THRUST = 5
 
 # Parameters overtaking
 OVERTAKING_LANE_LENGTH = 4.0
-LEFT_OVERTAKE = True #True means left, false means right
+LEFT_OVERTAKE = False #True means left, false means right
+OVERTAKING_ALLOWED_FRAMES = 2
+OVERTAKING_ALLOWED_TIMEOUT = 4.0
+THRESHOLD_ALLOWED_HEADING = 0.08
+OPPONENT_SEEN_TIMEOUT = 3.0
 
 class LineFollower(Node):
     def __init__(self):
@@ -83,6 +88,7 @@ class LineFollower(Node):
         # Variables
         self.center_offset = 0.0
         self.heading_angle = 0.0
+        self.current_heading = 0.0
         self.previous_center_offset = 0.0
         self.previous_heading = 0.0
         self.integral_term = []
@@ -96,6 +102,13 @@ class LineFollower(Node):
         self.min_front_distance = 0
         self.thrust = 0.0
         self.average_thrust = 0.0
+        self.overtaking_allowed_frames = []
+        self.within_overtaking_region = False
+        self.car_in_front = False
+        self.optimal_heading_to_overtake = False
+
+        self.time_since_overtaking_allowed = 0.0
+        self.time_since_opponent_seen = 0.0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -108,14 +121,14 @@ class LineFollower(Node):
         )
 
         # Initialize subscribers
-        self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 10)
+        self.lane_sub = self.create_subscription(Lane, 'lane_topic', self.lane_callback, 2)
         # self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
-        self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 10)
-        self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 10)
+        self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 2)
+        self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
         self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
         
         # Initialize publiher
-        self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 10)
+        self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 2)
         
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
@@ -133,6 +146,8 @@ class LineFollower(Node):
        
         self.min_front_distance = min(considered_distances)
        
+        if self.min_front_distance < 100:
+            self.time_since_opponent_seen = time.time()
         #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
         #self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
         #self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
@@ -141,18 +156,40 @@ class LineFollower(Node):
 
 
     def detected_signs_callback(self, msg):
-        # Change state
-        if (msg.cross_parking == True or msg.parallel_parking == True) and msg.sign_detected == True:
-           
-            self.get_logger().info('Overtaking allowed! Height:' + str(msg.sign_height))
+        
+        # make sure overtaking is really overtaking
+        if msg.overtaking_allowed and msg.sign_detected == True:
+            self.overtaking_allowed_frames.append(1)
+        else:
+            self.overtaking_allowed_frames.append(0)
+        if len(self.overtaking_allowed_frames) > OVERTAKING_ALLOWED_FRAMES:
+            self.overtaking_allowed_frames.pop(0)
 
-            if msg.sign_height > THRESHOLD_SIGN_HEIGHT:
-                #self.overtake_maneuver_initiated = True
-                
+        # very confident that there's an overtaking sign now
+        if sum(self.overtaking_allowed_frames) == OVERTAKING_ALLOWED_FRAMES:
+            # sign is close to car -> now car is in overtaking region
+            if (msg.sign_height > THRESHOLD_SIGN_HEIGHT_MIN) and (msg.sign_height < THRESHOLD_SIGN_HEIGHT_MAX):
+                self.within_overtaking_region = True
+                self.time_since_overtaking_allowed = time.time()
+
+        if (time.time() - self.time_since_opponent_seen) > OPPONENT_SEEN_TIMEOUT: 
+            self.within_overtaking_region = False
+        if (time.time() - self.time_since_overtaking_allowed) > OVERTAKING_ALLOWED_TIMEOUT:
+            self.within_overtaking_region = False
+
+        if self.within_overtaking_region:
+            self.get_logger().info('WITHIN REGION!!!')
+            # average and current heading angle must be straight and two lanes must be detected
+            if (self.heading_angle < abs(THRESHOLD_ALLOWED_HEADING)) and (self.current_heading < abs(THRESHOLD_ALLOWED_HEADING)) and self.left_lane_detected and self.right_lane_detected and self.emergency_stop == False:
+                # self.send_ackermann_halt()
+                self.off_track_mode = True 
+                self.get_logger().info('START MANAEIOUVER! Height:' + str(msg.sign_height))
                 self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
                 self.line_follow_off_track(self.average_thrust)
                 self.go_back_on_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
-
+                self.off_track_mode = False
+                self.within_overtaking_region = False
+        self.get_logger().info(str(msg.sign_height))
         return
 
     def go_off_track(self, current_thrust, overtake_left):
@@ -224,7 +261,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         hardcode_steer = 0.35
         hardcode_thrust = 1.5
-        t = 0.7 / (current_thrust + 0.1)
+        t = 0.5 / (current_thrust + 0.1)
         if t > 1.0:
             t = 1.0
         # HARDCODED SEQUENCE START
@@ -280,12 +317,14 @@ class LineFollower(Node):
 
         ## Only proceed if emergency stop is not triggered
 
-        if self.emergency_stop == False:
+        if self.emergency_stop == False and self.off_track_mode == False:
             if DRIVE_MODE in [0,1,2]:
                 # Filter signal
                 self.center_offset = self.filter_signal_offset(self.center_offset)
                 self.average_thrust = self.filter_signal_thrust(self.thrust)
+                self.current_heading = self.heading_angle
                 self.heading_angle = self.filter_signal_heading(self.heading_angle)
+                
 
                 # Flexible offset point depending on heading angle to bank sharper on curves
                 self.center_offset = self.center_offset + HEADING_ANGLE_MULTIPLIER * self.heading_angle + HEADING_ANGLE_MULTIPLIER_SQUARE * self.heading_angle * abs(self.heading_angle)
@@ -461,6 +500,7 @@ class LineFollower(Node):
     def emergency_shutdown_callback(self, msg):
         if msg.emergency_stop == True:
             self.emergency_stop = True
+            self.within_overtaking_region = False
 
             self.get_logger().info('EMERGENCY STOP!')
             # Send ackermann_halt for 2 second
@@ -474,9 +514,11 @@ class LineFollower(Node):
         
         if msg.phase_change == True:
             self.get_logger().info('START MANEOUIVER!')
+            self.off_track_mode = True
             self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
             self.line_follow_off_track(self.average_thrust)
             self.go_back_on_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
+            self.off_track_mode = False
 
         ## Alternative for RC
         # if joy_msg.buttons == 2:

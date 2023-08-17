@@ -1,2 +1,2 @@
-ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=false enable_accel:=false enable_depth:=false enable_gyro:=false enable_infra1:=false enable.infra2:=false rgb_camera.profile:=960x540x60
+ros2 launch realsense2_camera rs_launch.py pointcloud.enable:=false enable_accel:=false enable_depth:=false enable_gyro:=false enable_infra1:=false enable.infra2:=false rgb_camera.profile:=1280x720x30
 

@@ -11,6 +11,7 @@ from team_interfaces.msg import Signs
 import os
 from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
+from cv_bridge import CvBridge # For converting ROS image message to jpg
 
 
 # Python dependancies
@@ -19,28 +20,29 @@ import numpy as np # Import the NumPy scientific computing library
 import math
 import pyzed.sl as sl
 
-
-
+## Modes
+debug_mode = True # True to enable printing out images
+debug_modulo = 5
+use_classifier = True
 
 ############ Classifier ##############
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
-use_classifier = True
 
 ## camera output params
-width = 896
-height = 512
+width = 1280
+height = 720
 scale = 1
 
 ## BEV params
-top_roi = 0.4395 # 0-1 (0 is top)
-bottom_roi = 0.6347 # 0-1 (0 is top)
+top_roi = 0.4395 # 0.4395 # 0-1 (0 is top)
+bottom_roi = 0.6347 #0.6347 # 0-1 (0 is top)
 width_use = 1 # 0-1
 height_multiplier = 3.5
-skew_level = 0.885 # 0-1
+skew_level = 0.887 # 0-1
 
 ## filter params
-thresh = 138 # 0-255 (lower means higher sensitivity) 
-gaussian = 9 # must be odd number
+thresh = 133 # 0-255 (lower means higher sensitivity) 
+gaussian = 13 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
 adaptive_block_size = int(adaptive_block_size_factor*scale)
@@ -48,12 +50,12 @@ if adaptive_block_size % 2 == 0:
 	adaptive_block_size += 1
 
 ## line detect params
-search_step = int(2) # px
-search_offset = int(7)
-left_search_dist = int(62 + search_offset)
-right_search_dist = int(62 + search_offset)
-start_search_height = int(343)
-height_step = int(4)
+search_step = int(2) #2 # px
+search_offset = int(8)
+left_search_dist = int(82 + search_offset)
+right_search_dist = int(82 + search_offset)
+start_search_height = int(488) #488
+height_step = int(8) #8
 radius = 20 # px
 angle_sweep_0 = 200 # deg
 angle_sweep_1 = 140 # deg
@@ -66,8 +68,8 @@ start_angle_1 = math.radians(90+angle_sweep_1/2)
 stop_angle_1 = math.radians(90-angle_sweep_1/2)
 
 ## process lane params
-lane_distance = int(49)
-center_offset_constant = 452
+lane_distance = int(74) #74
+center_offset_constant = 648
 
 roi_in = np.float32(np.floor([
 	((1-width_use)*width*scale,0), # Top-left corner
@@ -90,11 +92,12 @@ zed = sl.Camera()
 # Set configuration parameters
 init_params = sl.InitParameters()
 init_params.camera_resolution = sl.RESOLUTION.HD720 # Use HD1080 video mode
-init_params.camera_fps = 30 # Set fps at 30
+init_params.camera_fps = 20 # Set fps at 30
 
 # Open the camera
 err = zed.open(init_params)
 if (err != sl.ERROR_CODE.SUCCESS) :
+    print('Zed exited script!')
     exit(-1)
 
 
@@ -104,7 +107,7 @@ class LaneRecognition(Node):
         super().__init__('lane_recognition_node')
 
         if use_classifier == True:
-            model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/best_s.pt'
+            model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/new_models/best_v7.pt'
             self.model = YOLO(model_path, task = 'detect')  # pretrained YOLOv8n model 
             self.publisher_signs = self.create_publisher(Signs,'detected_signs',10)
             self.cross_parking = False
@@ -114,25 +117,29 @@ class LaneRecognition(Node):
             self.overtaking_allowed = False
             self.overtaking_forbidden = False
             self.sign_height = 0.0
-            self.ctr_classifier = 0
+            
 
 
-        # Variables ariables
+        # Variables lane detection
         self.center_offset = 0.0
         self.heading_angle = 0.0
         self.img_saving_counter_1 = int(0)
         self.img_saving_counter_2 = int(0)
+        self.img_saving_counter_yolo = int(0)
         self.image_ocv = np.empty((0,), dtype=np.float32)
+
+        # Variables classifier
+        self.ctr_classifier = 0
         
         # Initialize subscribers
         #self.camera_sub = self.create_subscription(ROS_Image, '/zed/zed_node/left_raw/image_raw_color', self.cam_callback, 10)
         self.timer_ = self.create_timer(1.0 / 30.0, self.timer_callback)  # 30 fps
 
-        #self.camera_sub = self.create_subscription(ROS_Image, '/camera/color/image_raw', self.cam_callback, 10)
-
+        
         # Create publisher
         self.publisher = self.create_publisher(Lane, 'lane_topic', 10)
-
+    
+    #def cam_callback(self, msg):
     def timer_callback(self):
         image = sl.Mat()
         if (zed.grab() == sl.ERROR_CODE.SUCCESS) :
@@ -141,70 +148,80 @@ class LaneRecognition(Node):
             # Use get_data() to get the numpy array
             self.image_ocv = image.get_data()
 
-            if use_classifier == True:
-                if self.ctr_classifier % 4 == 0:
-                    cv_image = cv2.cvtColor(self.image_ocv, cv2.COLOR_RGB2BGR)
+        if use_classifier == True:
+            if self.ctr_classifier % 4 == 0:
+                cv_image = cv2.cvtColor(self.image_ocv, cv2.COLOR_RGB2BGR)
+                cv_image = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
 
-                    # Run inference
-                    results = self.model(cv_image, device = 0, imgsz = 640, conf = 0.5)
 
-                    # Preprocess output
-                    for result in results:
-                        boxes = result.boxes
-                    boxes=boxes.data.cpu()
-                    boxes=boxes.numpy() #see if this still works
+                # Run inference
+                results = self.model(cv_image, device = 0, imgsz = 640, conf = 0.5, stream=True)
 
-                    scores=[]
-                    height=[]
-                    class_ids=[]
+                # Preprocess output
+                for result in results:
+                    boxes = result.boxes
+                boxes=boxes.data.cpu()
+                boxes=boxes.numpy() #see if this still works
 
-                    for i in range(len(boxes)):
-                        scores.append(boxes[i][4])
-                        height.append(boxes[i][3])
-                        class_ids.append(boxes[i][5])
+                scores=[]
+                height=[]
+                class_ids=[]
 
-                    # Publish the detections as ROS String message
-                    self.result_msg = Signs()
+                for i in range(len(boxes)):
+                    scores.append(boxes[i][4])
+                    height.append(boxes[i][3])
+                    class_ids.append(boxes[i][5])
 
-                    max_class_id = 6
-                    if scores:
-                        max_score_index = np.argmax(scores)
-                        max_class_id = class_ids[max_score_index]
-                        self.result_msg.sign_detected = True
-                        self.sign_height = height[max_score_index]
+                # Publish the detections as ROS String message
+                self.result_msg = Signs()
 
-                    else:
-                        self.result_msg.sign_detected = False
+                max_class_id = 6
+                if scores:
+                    max_score_index = np.argmax(scores)
+                    max_class_id = class_ids[max_score_index]
+                    self.result_msg.sign_detected = True
+                    self.sign_height = height[max_score_index]
 
-                    if max_class_id == 1 or max_class_id==0:
-                        self.cross_parking = True
-                        self.parallel_parking = False
-                    elif max_class_id == 2:
-                        self.overtaking_allowed = True
-                        self.overtaking_forbidden = False
-                    elif max_class_id == 3:
-                        self.overtaking_allowed = False
-                        self.overtaking_forbidden = True
-                    elif max_class_id == 4:
-                        self.cross_parking = False
-                        self.parallel_parking = True
-                    elif max_class_id == 5:
-                        self.pit_in = True
-                        self.pit_out = False
-                    elif max_class_id == 6:
-                        self.pit_out = True
-                        self.pit_in = False
+                else:
+                    self.result_msg.sign_detected = False
 
-                    self.result_msg.cross_parking = self.cross_parking
-                    self.result_msg.parallel_parking = self.parallel_parking
-                    self.result_msg.overtaking_allowed = self.overtaking_allowed
-                    self.result_msg.overtaking_forbidden = self.overtaking_forbidden
-                    self.result_msg.pit_in = self.pit_in
-                    self.result_msg.pit_out = self.pit_out
-                    self.result_msg.sign_height = float(self.sign_height)
-                    
-                    self.publisher_signs.publish(self.result_msg)
-            self.ctr_classifier += 1
+                if max_class_id == 0:
+                    self.cross_parking = True
+                    self.parallel_parking = False
+                elif max_class_id == 1:
+                    self.overtaking_allowed = True
+                    self.overtaking_forbidden = False
+                elif max_class_id == 2:
+                    self.overtaking_allowed = False
+                    self.overtaking_forbidden = True
+                elif max_class_id == 3:
+                    self.cross_parking = False
+                    self.parallel_parking = True
+                elif max_class_id == 4:
+                    self.pit_in = True
+                    self.pit_out = False
+                elif max_class_id == 5:
+                    self.pit_out = True
+                    self.pit_in = False
+
+                self.result_msg.cross_parking = self.cross_parking
+                self.result_msg.parallel_parking = self.parallel_parking
+                self.result_msg.overtaking_allowed = self.overtaking_allowed
+                self.result_msg.overtaking_forbidden = self.overtaking_forbidden
+                self.result_msg.pit_in = self.pit_in
+                self.result_msg.pit_out = self.pit_out
+                self.result_msg.sign_height = float(self.sign_height)
+                
+                self.publisher_signs.publish(self.result_msg)
+
+                # Yolo image streamer
+                # if self.img_saving_counter_yolo % 4 == 0:
+                #     name = './frame_samples_zed_troubleshoot/yolo/img_' + str(self.img_saving_counter_yolo) + '.jpeg'
+                #     cv2.imwrite(name, cv_image)
+                # self.img_saving_counter_yolo += 1
+
+
+        self.ctr_classifier += 1
 
 
         lane = Lane()
@@ -219,22 +236,29 @@ class LaneRecognition(Node):
 
         # Load frame for testing
         #cv_image = cv2.imread('./src/frame_samples_zed/6.jpeg')
+
         img_bird = self.birdy_view(self.image_ocv)
         img_filtered = self.filter_line(img_bird)
+
         img_out, left_lane, right_lane = self.detect_lane(img_filtered)
-
-
-
-
         center_offset, heading_angle, left_detected, right_detected = self.process_lane(left_lane, right_lane)
         
-        img_out = self.label_offsets(img_out, center_offset, heading_angle)
-
-        # Image stream writer (post processing)
-        # name = './src/frame_samples_zed_troubleshoot/4/postprocess_' + str(self.img_saving_counter_2/20) + '.jpeg'
-        # if self.img_saving_counter_2 % 6 == 0:
-        #     cv2.imwrite(name, img_out)
-        # self.img_saving_counter_2 += 1
+        # Image stream writer
+        if debug_mode:
+            img_out = self.label_offsets(img_out, center_offset, heading_angle)
+            raw = './frame_samples_zed_troubleshoot/4/img_' + str(self.img_saving_counter_1/debug_modulo) + '.jpeg'
+            pp = './frame_samples_zed_troubleshoot/4/pp_' + str(self.img_saving_counter_2/debug_modulo) + '.jpeg'
+            if self.img_saving_counter_1 % debug_modulo == 0:
+                # cv2.imwrite(raw, self.image_ocv)
+                # cv2.imwrite(pp, img_out)
+                
+                # cv2.imwrite('./frame_samples_zed_troubleshoot/4/raw.jpeg', self.image_ocv)
+                cv2.imwrite('./frame_samples_zed_troubleshoot/4/pp.jpeg', img_out)
+            self.img_saving_counter_1 += 1
+            self.img_saving_counter_2 += 1
+            # cv2.imwrite('./frame_samples_zed_troubleshoot/4/bird.jpeg', img_bird)
+            # cv2.imwrite('./frame_samples_zed_troubleshoot/4/filtered.jpeg', img_filtered)
+        
 
         # Print relevant info
         # print("left", left_detected)
@@ -305,7 +329,8 @@ class LaneRecognition(Node):
                 while left_start > left_end - (x-1)*4:
                     left_start -= search_step
                     if img_in[left_search_height,left_start] == 0:
-                        img_out = cv2.circle(img_out, (left_start,left_search_height), radius = 1,color=(150, 0, 150), thickness=1)
+                        if debug_mode:
+                            img_out = cv2.circle(img_out, (left_start,left_search_height), radius = 1,color=(150, 0, 150), thickness=1)
                         continue
                     else:
                         left_lane_found = True
@@ -322,7 +347,8 @@ class LaneRecognition(Node):
                 while right_start < right_end + (x-1)*4:
                     right_start += search_step
                     if img_in[right_search_height,right_start] == 0:
-                        img_out = cv2.circle(img_out, (right_start,right_search_height), radius = 1,color=(150, 150, 0), thickness=1)
+                        if debug_mode:
+                            img_out = cv2.circle(img_out, (right_start,right_search_height), radius = 1,color=(150, 150, 0), thickness=1)
                         continue
                     else:
                         right_lane_found = True
@@ -358,7 +384,8 @@ class LaneRecognition(Node):
                     if cx < 0 or cx >= max_x - 1 or cy < 0 or cy >= max_y:
                         angle += sweep_step
                         continue
-                    img_out = cv2.circle(img_out, (cx,cy), radius = 1,color=(0, 0, 255), thickness=1) # visualization purposes
+                    if debug_mode:
+                        img_out = cv2.circle(img_out, (cx,cy), radius = 1,color=(0, 0, 255), thickness=1) # visualization purposes
                     
                     # calculate pixel ratio if found potential line connection
                     if img_in[cy,cx] == 255:
@@ -392,7 +419,8 @@ class LaneRecognition(Node):
                     sorted_points = sorted(valid_points, key=lambda tup: tup[2], reverse=True)
                     optimum_point = (sorted_points[0][0], sorted_points[0][1])
                     lane_points_left.append(optimum_point)
-                    cv2.line(img_out, (x,y), (optimum_point[0], optimum_point[1]), (255, 0, 0), 3)
+                    if debug_mode:
+                        cv2.line(img_out, (x,y), (optimum_point[0], optimum_point[1]), (255, 0, 0), 3)
                     heading = math.atan2((optimum_point[1]-y),(optimum_point[0]-x)) + math.radians(90)
                     x = optimum_point[0]
                     y = optimum_point[1]
@@ -421,7 +449,8 @@ class LaneRecognition(Node):
                     if cx < 0 or cx >= max_x - 1 or cy < 0 or cy >= max_y:
                         angle -= sweep_step
                         continue
-                    img_out = cv2.circle(img_out, (cx,cy), radius = 1,color=(255, 0, 0), thickness=1) # visualization purposes
+                    if debug_mode:
+                        img_out = cv2.circle(img_out, (cx,cy), radius = 1,color=(255, 0, 0), thickness=1) # visualization purposes
                     
                     # calculate pixel ratio if found potential line connection
                     if img_in[cy,cx] == 255:
@@ -454,7 +483,8 @@ class LaneRecognition(Node):
                     sorted_points = sorted(valid_points, key=lambda tup: tup[2], reverse=True)
                     optimum_point = (sorted_points[0][0], sorted_points[0][1])
                     lane_points_right.append(optimum_point)
-                    cv2.line(img_out, (x,y), (optimum_point[0], optimum_point[1]), (0, 0, 255), 3)
+                    if debug_mode:
+                        cv2.line(img_out, (x,y), (optimum_point[0], optimum_point[1]), (0, 0, 255), 3)
                     heading = math.atan2((optimum_point[1]-y),(optimum_point[0]-x)) + math.radians(90)
                     x = optimum_point[0]
                     y = optimum_point[1]
