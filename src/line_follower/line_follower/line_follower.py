@@ -40,8 +40,8 @@ HEADING_ANGLE_MULTIPLIER = -3
 HEADING_ANGLE_MULTIPLIER_SQUARE = -5
 
 # Parameters speed
-MIN_THRUST = 0.75  #0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
-MAX_THRUST = 1.2 #1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
+MIN_THRUST = 0.5  #0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
+MAX_THRUST = 1.0 #1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
 MAX_OVERTAKING_THRUST = 4.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 1.7
@@ -52,9 +52,9 @@ SIGMOID_YMAX_OFFSET = 0.45
 USS_PUNISHMENT_MULTIPLIER = 0.05
 
 # Parameters ultra-sonic sensors
-USS_MAX_DRAW_FRONT_LEFT = 15
-USS_MAX_DRAW_FRONT_MIDDLE = 20 
-USS_MAX_DRAW_FRONT_RIGHT = 15
+USS_MAX_DRAW_FRONT_LEFT = 40
+USS_MAX_DRAW_FRONT_MIDDLE = 40 
+USS_MAX_DRAW_FRONT_RIGHT = 40
 
 # Parameters signs
 THRESHOLD_SIGN_HEIGHT_MIN = 300
@@ -145,7 +145,10 @@ class LineFollower(Node):
     
     ### TODO: Remove This is only used for the expose!
     def traffic_light_callback(self, msg):
-        self.red = msg.traffic_light 
+        if msg.traffic_light == True:
+            self.red = msg.traffic_light
+        else:
+            self.red == False
 
     def uss_callback(self, msg):
         considered_distances = [100, 100, 100]
@@ -161,12 +164,12 @@ class LineFollower(Node):
         self.min_front_distance = min(considered_distances)
        
         if self.min_front_distance < 100:
-            self.get_logger().info('Min front distance:' + str(self.min_front_distance))
+            #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
 
             self.time_since_opponent_seen = time.time()
         #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
         # self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
-        # self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
         # self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
 
 
@@ -346,7 +349,7 @@ class LineFollower(Node):
         ## Only proceed if emergency stop is not triggered
 
         ### TODO: Remove the self.read == False
-        if self.emergency_stop == False and self.off_track_mode == False and self.red == False:
+        if self.emergency_stop == False and self.off_track_mode == False:
 
             if DRIVE_MODE in [0,1,2]:
                 # Filter signal
@@ -364,7 +367,7 @@ class LineFollower(Node):
 
                 # Calculate thrust
                 self.thrust = self.speed_controller(self.heading_angle)
-                self.get_logger().info('Thrust is  L' + str(self.thrust))
+
                 # Update previous offset and heading if offset is NaN
                 if not math.isnan(self.center_offset):
                     self.previous_center_offset = self.center_offset

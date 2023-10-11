@@ -45,7 +45,7 @@ height_multiplier = 3.5
 skew_level = 0.887 # 0-1
 
 ## filter params
-thresh = 94 #94 # 0-255 (lower means higher sensitivity) 
+thresh = 120 #94 # 0-255 (lower means higher sensitivity) 
 gaussian = 13 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
