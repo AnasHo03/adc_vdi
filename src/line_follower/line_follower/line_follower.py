@@ -10,6 +10,7 @@ from std_msgs.msg import UInt8, Int16MultiArray
 from team_interfaces.msg import Lane
 from team_interfaces.msg import Emergency
 from team_interfaces.msg import Signs
+from team_interfaces.msg import Trafficlight
 
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
@@ -19,7 +20,7 @@ import time
 
 
 # Parameters general
-DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking, 3 = park out cross
+DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing, 2 = overtaking, 3 = park out cross
 BLIND_OVERTAKE = True
 SNAIL_MODE = False
 DELAY_IN_FRAMES = 70
@@ -129,7 +130,12 @@ class LineFollower(Node):
         # self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
         self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 2)
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
-        self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)        
+        self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
+        
+        ### TODO: Remove This is only used for the expose!
+        self.traffic_light_sub = self.create_subscription(Trafficlight, 'traffic_light', self.traffic_light_callback, 2)
+        self.red = False
+        ###
         
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 2)
@@ -137,6 +143,10 @@ class LineFollower(Node):
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
     
+    ### TODO: Remove This is only used for the expose!
+    def traffic_light_callback(self, msg):
+        self.red = msg.traffic_light 
+
     def uss_callback(self, msg):
         considered_distances = [100, 100, 100]
 
@@ -335,7 +345,9 @@ class LineFollower(Node):
 
         ## Only proceed if emergency stop is not triggered
 
-        if self.emergency_stop == False and self.off_track_mode == False:
+        ### TODO: Remove the self.read == False
+        if self.emergency_stop == False and self.off_track_mode == False and self.red == False:
+
             if DRIVE_MODE in [0,1,2]:
                 # Filter signal
                 self.center_offset = self.filter_signal_offset(self.center_offset)
@@ -352,7 +364,7 @@ class LineFollower(Node):
 
                 # Calculate thrust
                 self.thrust = self.speed_controller(self.heading_angle)
-
+                self.get_logger().info('Thrust is  L' + str(self.thrust))
                 # Update previous offset and heading if offset is NaN
                 if not math.isnan(self.center_offset):
                     self.previous_center_offset = self.center_offset
