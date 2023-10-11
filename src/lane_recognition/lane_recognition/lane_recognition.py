@@ -17,13 +17,15 @@ from cv_bridge import CvBridge # For converting ROS image message to jpg
 # Python dependancies
 import cv2 # Import the OpenCV library to enable computer vision
 import numpy as np # Import the NumPy scientific computing library
+from numpy.linalg import norm
 import math
 import pyzed.sl as sl
 
 ## Modes
-debug_mode = True # True to enable printing out images
-debug_modulo = 5
+debug_mode = False # True to enable printing out images
+debug_modulo = 20
 use_classifier = True
+drag_mode = False
 
 ############ Classifier ##############
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
@@ -41,7 +43,7 @@ height_multiplier = 3.5
 skew_level = 0.887 # 0-1
 
 ## filter params
-thresh = 133 # 0-255 (lower means higher sensitivity) 
+thresh = 94 #94 # 0-255 (lower means higher sensitivity) 
 gaussian = 13 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2
@@ -50,16 +52,16 @@ if adaptive_block_size % 2 == 0:
 	adaptive_block_size += 1
 
 ## line detect params
-search_step = int(2) #2 # px
+search_step = int(3) #2 # px
 search_offset = int(8)
-left_search_dist = int(82 + search_offset)
-right_search_dist = int(82 + search_offset)
+left_search_dist = int(94 + search_offset)
+right_search_dist = int(94 + search_offset)
 start_search_height = int(488) #488
 height_step = int(8) #8
 radius = 20 # px
 angle_sweep_0 = 200 # deg
 angle_sweep_1 = 140 # deg
-sweep_step = math.radians(5)
+sweep_step = math.radians(6)
 max_points = 6
 
 start_angle_0 = math.radians(90+angle_sweep_0/2)
@@ -69,7 +71,7 @@ stop_angle_1 = math.radians(90-angle_sweep_1/2)
 
 ## process lane params
 lane_distance = int(74) #74
-center_offset_constant = 648
+center_offset_constant = 645
 
 roi_in = np.float32(np.floor([
 	((1-width_use)*width*scale,0), # Top-left corner
@@ -93,6 +95,7 @@ zed = sl.Camera()
 init_params = sl.InitParameters()
 init_params.camera_resolution = sl.RESOLUTION.HD720 # Use HD1080 video mode
 init_params.camera_fps = 20 # Set fps at 30
+#init_params.camera_auto_exposure_gain = True
 
 # Open the camera
 err = zed.open(init_params)
@@ -107,7 +110,7 @@ class LaneRecognition(Node):
         super().__init__('lane_recognition_node')
 
         if use_classifier == True:
-            model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/new_models/best_v7.pt'
+            model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/new_models/best_refitted.pt'
             self.model = YOLO(model_path, task = 'detect')  # pretrained YOLOv8n model 
             self.publisher_signs = self.create_publisher(Signs,'detected_signs',10)
             self.cross_parking = False
@@ -185,22 +188,22 @@ class LaneRecognition(Node):
                 else:
                     self.result_msg.sign_detected = False
 
-                if max_class_id == 0:
+                if max_class_id == 1:
                     self.cross_parking = True
                     self.parallel_parking = False
-                elif max_class_id == 1:
+                elif max_class_id == 3:
                     self.overtaking_allowed = True
                     self.overtaking_forbidden = False
                 elif max_class_id == 2:
                     self.overtaking_allowed = False
                     self.overtaking_forbidden = True
-                elif max_class_id == 3:
+                elif max_class_id == 4:
                     self.cross_parking = False
                     self.parallel_parking = True
-                elif max_class_id == 4:
+                elif max_class_id == 5:
                     self.pit_in = True
                     self.pit_out = False
-                elif max_class_id == 5:
+                elif max_class_id == 6:
                     self.pit_out = True
                     self.pit_in = False
 
@@ -252,7 +255,7 @@ class LaneRecognition(Node):
                 # cv2.imwrite(raw, self.image_ocv)
                 # cv2.imwrite(pp, img_out)
                 
-                # cv2.imwrite('./frame_samples_zed_troubleshoot/4/raw.jpeg', self.image_ocv)
+                cv2.imwrite('./frame_samples_zed_troubleshoot/4/raw.jpeg', self.image_ocv)
                 cv2.imwrite('./frame_samples_zed_troubleshoot/4/pp.jpeg', img_out)
             self.img_saving_counter_1 += 1
             self.img_saving_counter_2 += 1
@@ -292,6 +295,10 @@ class LaneRecognition(Node):
 
     ## thresholding to get binary image
     def filter_line(self, img_in):
+        # brightness = np.average(norm(img_in, axis=2)) / np.sqrt(3) * 0.01
+        # self.get_logger().info('Brighrness :' + str(brightness))
+        # img_out = np.uint8(img_in / brightness)
+        # img_out.clip(0, 255)
         img_out = cv2.cvtColor(img_in, cv2.COLOR_BGR2HLS)
         img_out = cv2.GaussianBlur(img_out,(gaussian,gaussian),0)
         _, img_out = cv2.threshold(img_out[:,:,1], thresh, 255, cv2.THRESH_BINARY)
@@ -340,27 +347,28 @@ class LaneRecognition(Node):
                 break
 
         ## find right lane start to the right of center point
-        for x in range(0,4):
-            if not right_lane_found:
-                right_search_height -= height_step
-                right_start = int(max_x/2 + search_offset + x*7)
-                while right_start < right_end + (x-1)*4:
-                    right_start += search_step
-                    if img_in[right_search_height,right_start] == 0:
-                        if debug_mode:
-                            img_out = cv2.circle(img_out, (right_start,right_search_height), radius = 1,color=(150, 150, 0), thickness=1)
-                        continue
-                    else:
-                        right_lane_found = True
-                        lane_points_right.append((right_start,right_search_height))
-                        break
-            else:
-                break
+        if not drag_mode:
+            for x in range(0,4):
+                if not right_lane_found:
+                    right_search_height -= height_step
+                    right_start = int(max_x/2 + search_offset + x*7)
+                    while right_start < right_end + (x-1)*4:
+                        right_start += search_step
+                        if img_in[right_search_height,right_start] == 0:
+                            if debug_mode:
+                                img_out = cv2.circle(img_out, (right_start,right_search_height), radius = 1,color=(150, 150, 0), thickness=1)
+                            continue
+                        else:
+                            right_lane_found = True
+                            lane_points_right.append((right_start,right_search_height))
+                            break
+                else:
+                    break
 
-        ## check if left lane is right lane
-        if left_lane_found and right_lane_found:
-            if left_start - 2*search_step <= right_start <= left_start + 2*search_step and left_search_height - 2*height_step <= right_search_height <= left_search_height + 2*height_step:
-                left_is_right = True
+            ## check if left lane is right lane
+            if left_lane_found and right_lane_found:
+                if left_start - 2*search_step <= right_start <= left_start + 2*search_step and left_search_height - 2*height_step <= right_search_height <= left_search_height + 2*height_step:
+                    left_is_right = True
 
         ## detect and discretize left lane
         if left_lane_found:

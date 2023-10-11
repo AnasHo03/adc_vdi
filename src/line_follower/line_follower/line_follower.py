@@ -20,13 +20,15 @@ import time
 
 # Parameters general
 DRIVE_MODE = 2 # 0 = normal lap, 1 = drag racing, 2 = overtaking, 3 = park out cross
+BLIND_OVERTAKE = True
+SNAIL_MODE = False
 DELAY_IN_FRAMES = 70
 
 # Parameters steering
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
 KP_LO = 0.016/1.4 # Proportional gain constant
-KP_DRAG_RACING = 0.0195 / 1.4   # drag racing KP
+KP_DRAG_RACING = 0.019 / 1.4   # drag racing KP
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 / 1.4 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
@@ -37,11 +39,11 @@ HEADING_ANGLE_MULTIPLIER = -3
 HEADING_ANGLE_MULTIPLIER_SQUARE = -5
 
 # Parameters speed
-MIN_THRUST = 0.75  #Timed trial: 0.7 / 0.5
-MAX_THRUST = 1.2  #Timed trial: 1.4 / 1.0 
+MIN_THRUST = 0.75  #0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
+MAX_THRUST = 1.2 #1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
 MAX_OVERTAKING_THRUST = 4.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
-CONSTANT_THRUST_DRAG = 2.5
+CONSTANT_THRUST_DRAG = 1.7
 KP_THRUST = 1.0
 SIGMOID_SLOPE = 4
 SIGMOID_X_OFFSET = 1.04
@@ -49,12 +51,12 @@ SIGMOID_YMAX_OFFSET = 0.45
 USS_PUNISHMENT_MULTIPLIER = 0.05
 
 # Parameters ultra-sonic sensors
-USS_MAX_DRAW_FRONT_LEFT = 12
+USS_MAX_DRAW_FRONT_LEFT = 15
 USS_MAX_DRAW_FRONT_MIDDLE = 20 
-USS_MAX_DRAW_FRONT_RIGHT = 12
+USS_MAX_DRAW_FRONT_RIGHT = 15
 
 # Parameters signs
-THRESHOLD_SIGN_HEIGHT_MIN = 350
+THRESHOLD_SIGN_HEIGHT_MIN = 300
 THRESHOLD_SIGN_HEIGHT_MAX = 450
 
 # Parameters filtering
@@ -64,9 +66,11 @@ NUM_ELEMENTS_TO_CONSIDER_HEADING = 5 # must be smaller than NUM_ELEMENTS_TO_AVER
 NUM_ELEMENTS_TO_AVERAGE_THRUST = 5
 
 # Parameters overtaking
-OVERTAKING_LANE_LENGTH = 4.0
+OVERTAKING_LANE_LENGTH = 5.0
+if SNAIL_MODE:
+    OVERTAKING_LANE_LENGTH = 10.0
 LEFT_OVERTAKE = False #True means left, false means right
-OVERTAKING_ALLOWED_FRAMES = 2
+OVERTAKING_ALLOWED_FRAMES = 1
 OVERTAKING_ALLOWED_TIMEOUT = 4.0
 THRESHOLD_ALLOWED_HEADING = 0.08
 OPPONENT_SEEN_TIMEOUT = 3.0
@@ -147,11 +151,13 @@ class LineFollower(Node):
         self.min_front_distance = min(considered_distances)
        
         if self.min_front_distance < 100:
+            self.get_logger().info('Min front distance:' + str(self.min_front_distance))
+
             self.time_since_opponent_seen = time.time()
         #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
-        #self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
-        #self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
-        #self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
+        # self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
+        # self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        # self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
 
 
 
@@ -160,6 +166,9 @@ class LineFollower(Node):
         # make sure overtaking is really overtaking
         if msg.overtaking_allowed and msg.sign_detected == True:
             self.overtaking_allowed_frames.append(1)
+            #self.get_logger().info('Height is:' + str(msg.sign_height))
+
+
         else:
             self.overtaking_allowed_frames.append(0)
         if len(self.overtaking_allowed_frames) > OVERTAKING_ALLOWED_FRAMES:
@@ -178,25 +187,30 @@ class LineFollower(Node):
             self.within_overtaking_region = False
 
         if self.within_overtaking_region:
-            self.get_logger().info('WITHIN REGION!!!')
+            #self.get_logger().info('WITHIN REGION!!!')
             # average and current heading angle must be straight and two lanes must be detected
             if (self.heading_angle < abs(THRESHOLD_ALLOWED_HEADING)) and (self.current_heading < abs(THRESHOLD_ALLOWED_HEADING)) and self.left_lane_detected and self.right_lane_detected and self.emergency_stop == False:
                 # self.send_ackermann_halt()
                 self.off_track_mode = True 
                 self.get_logger().info('START MANAEIOUVER! Height:' + str(msg.sign_height))
+
+
                 self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
                 self.line_follow_off_track(self.average_thrust)
                 self.go_back_on_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
                 self.off_track_mode = False
+
+                self.send_ackermann_halt()
+
                 self.within_overtaking_region = False
-        self.get_logger().info(str(msg.sign_height))
+        #self.get_logger().info('Height is:' + str(msg.sign_height))
         return
 
     def go_off_track(self, current_thrust, overtake_left):
         ack_msg = AckermannDrive()
         hardcode_steer = 0.35
-        hardcode_thrust = 1.5
-        t = 0.7 / (current_thrust + 0.1)
+        hardcode_thrust = 1.7
+        t = 0.55 / (current_thrust + 0.1)
         if t > 1.0:
             t = 1.0
         # HARDCODED SEQUENCE START
@@ -235,7 +249,7 @@ class LineFollower(Node):
 
     def line_follow_off_track(self, current_thrust):
         ack_msg = AckermannDrive()
-        hardcode_thrust = 2
+        hardcode_thrust = 2.5
         t = 0.0
         while True:
             delta_speed = (current_thrust*(hardcode_thrust - 1))
@@ -246,6 +260,10 @@ class LineFollower(Node):
                 hardcode_thrust = hardcode_thrust * 1.2
         ack_msg.steering_angle = 0.0 + STEERING_BIAS
         ack_msg.speed = hardcode_thrust * current_thrust 
+
+        if SNAIL_MODE:
+            ack_msg.speed = 3.0
+            t = 2.0
         if ack_msg.speed > MAX_OVERTAKING_THRUST:
             ack_msg.speed = MAX_OVERTAKING_THRUST
 
@@ -260,8 +278,8 @@ class LineFollower(Node):
     def go_back_on_track(self, current_thrust, overtake_left):
         ack_msg = AckermannDrive()
         hardcode_steer = 0.35
-        hardcode_thrust = 1.5
-        t = 0.5 / (current_thrust + 0.1)
+        hardcode_thrust = 1.7
+        t = 0.55 / (current_thrust + 0.1)
         if t > 1.0:
             t = 1.0
         # HARDCODED SEQUENCE START
@@ -342,8 +360,13 @@ class LineFollower(Node):
                     self.previous_heading = self.heading_angle
 
                 # Publish Ackermann message after delay
-                if self.start_ctr > DELAY_IN_FRAMES:
+                if self.start_ctr > DELAY_IN_FRAMES and not SNAIL_MODE:
                     self.send_ackermann(steering_angle, self.thrust)
+                elif self.start_ctr > DELAY_IN_FRAMES and SNAIL_MODE:
+                    self.send_ackermann(steering_angle, 0.6)
+                    if np.random.rand(1,1) < 0.03:
+                        self.send_ackermann(steering_angle, 0.0)
+                        time.sleep(1.0)
                 # Countdown
                 elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
                     if DRIVE_MODE == 1:

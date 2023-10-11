@@ -32,6 +32,8 @@ install(PROGRAMS
   ${PROJECT_NAME}/ackermann_to_vesc.py
   ${PROJECT_NAME}/emergency_stop_publisher.py
   ${PROJECT_NAME}/trigger_node.py
+  ${PROJECT_NAME}/cross_parking_out.py
+  ${PROJECT_NAME}/parrallel_parking_out.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

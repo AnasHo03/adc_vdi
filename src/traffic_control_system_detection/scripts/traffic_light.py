@@ -17,29 +17,54 @@ from rclpy.node import Node
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CompressedImage #CompressedImage
 from team_interfaces.msg import Trafficlight
+import pyzed.sl as sl
+
 
 
 #-----------------------------------------------------------
-# Function
+# Zed stuff
 #-----------------------------------------------------------
-#/zed/zed_node/left/image_rect_color/compressed
+# Create a ZED camera object
+zed = sl.Camera()
+
+# Set configuration parameters
+init_params = sl.InitParameters()
+init_params.camera_resolution = sl.RESOLUTION.HD720 # Use HD1080 video mode
+init_params.camera_fps = 20 # Set fps at 30
+#init_params.camera_auto_exposure_gain = True
+
+# Open the camera
+err = zed.open(init_params)
+if (err != sl.ERROR_CODE.SUCCESS) :
+    print('Zed exited script!')
+    exit(-1)
 
 class ImageProcessor(Node):
     def __init__(self):
         super().__init__('image_subscriber')
-        self.subscription = self.create_subscription(CompressedImage, '/zed/zed_node/left/image_rect_color/compressed', self.image_callback, 10)
+
         self.publisher = self.create_publisher(Trafficlight, 'traffic_light', 10)
+        self.timer_30hz = self.create_timer(1.0 / 30.0, self.timer_callback_30hz)
+
         self.bridge = CvBridge()
         self.decision = False
 
-    def image_callback(self, msg):
+    def timer_callback_30hz(self):
         try:
             self.get_logger()
+            image = sl.Mat()
+            if (zed.grab() == sl.ERROR_CODE.SUCCESS) :
+                # A new image is available if grab() returns SUCCESS
+                zed.retrieve_image(image, sl.VIEW.LEFT) # Get the left image
+                # Use get_data() to get the numpy array
+                image_ocv = image.get_data()
+
             # Convert the ROS2 Image message to a OpenCV image
-            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, 'bgr8') #compressed_imgmsg_to_cv2
+            cv_image = cv2.cvtColor(image_ocv, cv2.COLOR_RGB2BGR)
+            cv_imag = cv2.cvtColor(cv_image, cv2.COLOR_RGB2BGR)
 
             # Process the OpenCV image
-            self.decision = self.detectTrafficLight(cv_image, self.decision)
+            self.decision = self.detectTrafficLight(cv_imag, self.decision)
 
             
             traffic_lights_msg = Trafficlight()
@@ -130,14 +155,9 @@ class ImageProcessor(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    image_subscriber = ImageProcessor()
-    rclpy.spin(image_subscriber)
+    node = ImageProcessor()
 
-    # Destroy the OpenCV window when the node is shutdown
-    cv2.destroyAllWindows()
-    image_subscriber.destroy_node()
-    rclpy.shutdown()
-
+    rclpy.spin(node)
 
 if __name__ == '__main__':
     main()
