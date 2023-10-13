@@ -21,13 +21,14 @@ import numpy as np # Import the NumPy scientific computing library
 from numpy.linalg import norm
 import math
 import pyzed.sl as sl
+import sys
 
 ## Modes
 debug_mode = False # True to enable printing out images
 debug_modulo = 20
 use_classifier = False
 drag_mode = False
-use_traffic_light_detection = True
+use_traffic_light_detection = False
 
 ############ Classifier ##############
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
@@ -46,6 +47,7 @@ skew_level = 0.887 # 0-1
 
 ## filter params
 thresh = 120 #94 # 0-255 (lower means higher sensitivity) 
+thresh = int(sys.argv[1])
 gaussian = 13 # must be odd number
 adaptive_block_size_factor = 11 # must be odd number
 adaptive_const = 2

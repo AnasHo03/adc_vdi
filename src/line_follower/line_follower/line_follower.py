@@ -16,7 +16,7 @@ from team_interfaces.msg import Trafficlight
 import numpy as np # Import the NumPy scientific computing library
 import math
 import time
-
+import sys
 
 
 # Parameters general
@@ -33,7 +33,7 @@ KP_DRAG_RACING = 0.019 / 1.4   # drag racing KP
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 / 1.4 # drag racing KI
 INTEGRAL_CONTROLLER_FRAMES = 8 # frames
-KD = 0.0 #0.00050    # Derivative gain
+KD = 0.00050    # Derivative gain
 KD_DRAG_RACING  = 0.0050 / 1.4 # drag racing KD
 STEERING_BIAS = -0.021
 HEADING_ANGLE_MULTIPLIER = -3
@@ -42,6 +42,8 @@ HEADING_ANGLE_MULTIPLIER_SQUARE = -5
 # Parameters speed
 MIN_THRUST = 0.5  #0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
 MAX_THRUST = 1.0 #1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
+MIN_THRUST = float(sys.argv[1])
+MAX_THRUST = float(sys.argv[2])
 MAX_OVERTAKING_THRUST = 4.5
 CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 1.7
@@ -49,12 +51,12 @@ KP_THRUST = 1.0
 SIGMOID_SLOPE = 4
 SIGMOID_X_OFFSET = 1.04
 SIGMOID_YMAX_OFFSET = 0.45
-USS_PUNISHMENT_MULTIPLIER = 0.05
+USS_PUNISHMENT_MULTIPLIER = 0.0 #0.05
 
 # Parameters ultra-sonic sensors
-USS_MAX_DRAW_FRONT_LEFT = 40
-USS_MAX_DRAW_FRONT_MIDDLE = 40 
-USS_MAX_DRAW_FRONT_RIGHT = 40
+USS_MAX_DRAW_FRONT_LEFT = 20
+USS_MAX_DRAW_FRONT_MIDDLE = 20 
+USS_MAX_DRAW_FRONT_RIGHT = 20
 
 # Parameters signs
 THRESHOLD_SIGN_HEIGHT_MIN = 300
@@ -132,23 +134,11 @@ class LineFollower(Node):
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
         self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
         
-        ### TODO: Remove This is only used for the expose!
-        self.traffic_light_sub = self.create_subscription(Trafficlight, 'traffic_light', self.traffic_light_callback, 2)
-        self.red = False
-        ###
-        
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 2)
         
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
-    
-    ### TODO: Remove This is only used for the expose!
-    def traffic_light_callback(self, msg):
-        if msg.traffic_light == True:
-            self.red = msg.traffic_light
-        else:
-            self.red == False
 
     def uss_callback(self, msg):
         considered_distances = [100, 100, 100]
@@ -169,7 +159,7 @@ class LineFollower(Node):
             self.time_since_opponent_seen = time.time()
         #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
         # self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
-        self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        #self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
         # self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
 
 
@@ -205,7 +195,7 @@ class LineFollower(Node):
             if (self.heading_angle < abs(THRESHOLD_ALLOWED_HEADING)) and (self.current_heading < abs(THRESHOLD_ALLOWED_HEADING)) and self.left_lane_detected and self.right_lane_detected and self.emergency_stop == False:
                 # self.send_ackermann_halt()
                 self.off_track_mode = True 
-                self.get_logger().info('START MANAEIOUVER! Height:' + str(msg.sign_height))
+                #self.get_logger().info('START MANAEIOUVER! Height:' + str(msg.sign_height))
 
 
                 self.go_off_track(self.average_thrust, LEFT_OVERTAKE) # True is left, false is right
@@ -348,7 +338,6 @@ class LineFollower(Node):
 
         ## Only proceed if emergency stop is not triggered
 
-        ### TODO: Remove the self.read == False
         if self.emergency_stop == False and self.off_track_mode == False:
 
             if DRIVE_MODE in [0,1,2]:
@@ -444,13 +433,14 @@ class LineFollower(Node):
         proportional_term = self.sigmoid_controller(norm_heading_angle)
 
         # Apply punishment term if too close to oponent car
+        ### TODO: only use punishment term for racing (DRIVE_MODE = 2)
         if DRIVE_MODE == 2 and self.min_front_distance != 100:
             self.punishment_term =  1/(USS_PUNISHMENT_MULTIPLIER*self.min_front_distance+1) * self.sigmoid_controller(norm_heading_angle)
             proportional_term = proportional_term - self.punishment_term
             
 
-        # self.get_logger().info('punishment term:' + str(self.punishment_term))
-        # self.get_logger().info('proportional_term:' + str(proportional_term))
+        #self.get_logger().info('punishment term:' + str(self.punishment_term))
+        #self.get_logger().info('proportional_term:' + str(proportional_term))
 
         # proportional_term = KP_THRUST * norm_heading_angle
         # Clip signal
