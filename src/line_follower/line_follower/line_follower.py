@@ -11,6 +11,7 @@ from team_interfaces.msg import Lane
 from team_interfaces.msg import Emergency
 from team_interfaces.msg import Signs
 from team_interfaces.msg import Trafficlight
+from mxcarkit_vehctrl_message.msg import VehCtrlCustomMessage
 
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
@@ -116,6 +117,11 @@ class LineFollower(Node):
 
         self.time_since_overtaking_allowed = 0.0
         self.time_since_opponent_seen = 0.0
+        
+        # Manual driving variables
+        self.remote_pwm = 0     # holds remote state
+        self.steering_pwm = 0
+        self.throttle_pwm = 0
 
         # Define messages
         self.ack_msg = AckermannDrive()
@@ -133,12 +139,28 @@ class LineFollower(Node):
         self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 2)
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
         self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
-        
+        self.veh_remote_sub = self.create_subscription(VehCtrlCustomMessage, 'veh_remote_ctrl', self.veh_remote_callback, qos_profile=qos_profile)    
+
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 2)
         
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
+
+
+    def veh_remote_callback(self, msg):
+        self.remote_pwm = msg.steering_pwm
+        self.steering_pwm = msg.remote_pwm
+        self.throttle_pwm = msg.throttle_pwm
+
+        if (self.remote_pwm > 1990 and self.remote_pwm < 2010):
+            self.emergency_stop = True
+        elif (self.remote_pwm > 990 and self.remote_pwm < 1010):
+            self.emergency_stop = False
+        # print(str(self.emergency_stop))
+        # print (str(self.remote_pwm))
+        # print (str(self.steering_pwm))
+        # print (str(self.throttle_pwm))
 
     def uss_callback(self, msg):
         considered_distances = [100, 100, 100]
@@ -338,6 +360,10 @@ class LineFollower(Node):
 
         ## Only proceed if emergency stop is not triggered
 
+        # manual steering
+            
+
+        #if self.emergency_stop == False and self.off_track_mode == False and self.remote_pwm == SOMETHING: 
         if self.emergency_stop == False and self.off_track_mode == False:
 
             if DRIVE_MODE in [0,1,2]:
@@ -395,6 +421,19 @@ class LineFollower(Node):
                 self.start_ctr += 1
                 if self.start_ctr == DELAY_IN_FRAMES:
                     self.emergency_stop = True 
+        elif self.emergency_stop == True:
+            manual_steer = float(0)
+            manual_thrust = float(0)
+            # self.get_logger().info(str(self.remote_pwm))
+            # self.get_logger().info(str(self.throttle_pwm))
+            if self.steering_pwm > 1510 or self.steering_pwm < 1490:
+                manual_steer = float(self.steering_pwm - 1500)*0.442/600.0
+            if self.throttle_pwm > 1502 or self.throttle_pwm < 1498:
+                manual_thrust = float((self.throttle_pwm - 1500)*2/600.0)
+            # print(str(manual_steer))
+            # print(str(manual_thrust))c
+            # manual_thrust = float(2.5)
+            self.send_ackermann(manual_steer,manual_thrust)
 
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero
