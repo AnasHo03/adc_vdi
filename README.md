@@ -1,4 +1,4 @@
-# ADC
+# adc
 
 ### Directories Description
     ├──  ackermann_msgs                      : Needed dependancy (submodule)
@@ -70,10 +70,10 @@ Note that currently the perception module lane_recognition must be run from outs
 
     docker run --runtime nvidia -it --rm --network host --privileged -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
 
-3.2) Go to our directory inside docker
+3.2) Go to our directory inside Docker (in each)
 
     cd /home/workspaces/ros2_ws/
-3.3) Source packages
+3.3) Source packages (in each)
 
     source /home/ros2_ws/install/setup.bash && source install/setup.bash
 3.4) Launch or run the following
