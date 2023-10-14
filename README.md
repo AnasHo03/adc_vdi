@@ -1,4 +1,4 @@
-# adc
+# ADC
 
 ### Directories Description
     ├──  ackermann_msgs                      : Needed dependancy (submodule)
@@ -36,77 +36,65 @@
     ├── traffic_control_system_detection    : Perception package for classifier and traffic sign detection
 
     
-### Docker development
+### Important Note!
+Note that currently the perception module lane_recognition must be run from outside of Docker as the used modules for the classifier only function on the main host machine (Jetson). It is highly recommended to either move all modules to Docker or to move all modules to local machine (Jetson). Due to time cosntraints we were not able to do this.
 
-SSH inside the Car. Development in VSCode: Ctrl + Shift + P --> Remote SSH: Connect to Host. Terminal --> New Terminal.
-
-Clone this repository and recurse submodules (First time)
+### Initial Setup
+-SSH inside the Car: In VSCode: Ctrl + Shift + P --> Remote SSH: Connect to Host. Terminal --> New Terminal
+-Clone this repository and recurse submodules (First time)
     
     git clone --recurse-submodules https://github.com/CryptoHypnos/adc.git
 
-Pulling new changes
+-Pulling new changes
 
     git pull --recurse-submodules
     git submodule update --init --recursive
 
-Pulling docker image (Only do once except dockerfile changes). This dockerfile only works for Jetson Linux 35.x.
+-Pulling docker image (Only do once except dockerfile changes). This dockerfile only works for Jetson Linux 35.x.
 
     docker pull stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
+    
+### Bring Up and Operation
+1) SSH inside the Car: In VSCode: Ctrl + Shift + P --> Remote SSH: Connect to Host. Terminal --> New Terminal
 
-Opening a new terminal inside docker
+2.1) Open a new terminal on local machine and navigate to src
+
+    cd src
+2.2) Source packages
+
+    source install/setup.bash
+2.3) Run the perception node (xxx is the thresholding for binarization) 
+
+    ros2 run lane_recognition lane_recognition 130
+3.1) Open 3 new terminals inside Docker
 
     docker run --runtime nvidia -it --rm --network host --privileged -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
 
-Go to our directory inside docker
+3.2) Go to our directory inside docker
 
     cd /home/workspaces/ros2_ws/
-    # Source build packages
+3.3) Source packages
+
     source /home/ros2_ws/install/setup.bash && source install/setup.bash
-    # Build your package
-    colcon build --packages-select <your_package>
+3.4) Launch or run the following
+3.4.1) First terminal: bring-up launch file
+
+    ros2 launch vehicle_control autonomous_control.launch.py 
+3.4.2) Second terminal: emergency shutdown node
+
+    ros2 run vehicle_control emergency_stop_publisher.py 
+3.4.3) Third terminal: (x.x is min speed. y.y is max speed)
+    
+    ros2 run line_follower line_follower 0.4 0.8
 
 ###### Note: Ctrl + D to quit docker environment. Always git pull changes outside docker, otherwise we will sometimes get permission issues with colcon build and git.
 
-#### Example launching ZED camera inside docker container. (Tested working)
-
-Config file can be found in: src/zed_perception/config/zed. Change the camera_model accordingly in zed_launch.py and zed.yaml to 'zed' or 'zed2'.
-Open a new terminal and run the following command:
-
-    docker run --runtime nvidia -it --rm --network host --privileged -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 bash -c "cd /home/workspaces/ros2_ws && \
-    . /home/ros2_ws/install/setup.bash && . install/setup.bash && ros2 launch zed_perception zed_launch.py" 
-
-To visualize in Foxglove, install rosbridge suite
-
-    sudo apt install ros-humble-rosbridge-suite
-
-Launch websocket on your PC
-
-    ros2 launch rosbridge_server rosbridge_websocket_launch.xml
-
-To visualize ZED camera in RViZ (Only tested PC with ROS 2 Humble + camera connected to it).
-
-    ros2 run rviz2 rviz2 -d src/zed_perception/rviz/zed2.rviz
-
-#### Example launching lidar inside docker container. (Tested working)
-Open a new terminal and run the following command:
-
-    docker run --runtime nvidia -it --rm --network host --privileged \
-    -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws \
-    stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
-    bash -c "cd /home/workspaces/ros2_ws && \
-    source install/setup.bash && \ 
-    ros2 launch sllidar_ros2 sllidar_launch.py"
-
-#### Example launching vehicle control using VESC. (Not Tested)    
- Open a new terminal and run the manual vehicle control including VESC driver node:
-
-    docker run --runtime nvidia -it --rm --network host --privileged \
-    -v /dev:/dev -v ~/adc:/home/workspaces/ros2_ws \
-    stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0 \
-    bash -c "cd /home/workspaces/ros2_ws && \
-    source install/setup.bash && \ 
-    ros2 launch vehicle_control autonomous_control.launch.py"
    
+### Maintainers
+Rachid Alhourani: General questions, hardware, line_follower
+Jason Sutanto: Perception module lane_recognition
+Johannes Schoch: Classifier
 
- ### TODO
-- Work on getting STM32 Ultrasonic sensor data using MicroROS
+ ### TODO (Suggestions)
+ This is a supplemental list to that found in the written report
+- Ask Mdynamix for missing screws
