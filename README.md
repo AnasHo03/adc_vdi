@@ -92,7 +92,9 @@ Note that currently the perception module lane_recognition must be run from outs
    
 ### Maintainers
 Rachid Alhourani: General questions, hardware, line_follower
-Jason Sutanto: Perception module lane_recognition
+
+Jason Sutanto: line_follower, lane_recognition
+
 Johannes Schoch: Classifier
 
  ### TODO (Suggestions)
