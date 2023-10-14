@@ -1,19 +1,40 @@
 # adc
 
 ### Directories Description
-    ├──  ackermann_msgs      : Needed dependancy (submodule)
-    ├──  depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image (not used and not tested)
-    ├──  depth_from_rgb      : 
+    ├──  ackermann_msgs                      : Needed dependancy (submodule)
+    ├──  depth_from_rgb                      : Package that calculates distance matching between the RGB image with the depth image (not used and not tested)
+    ├──  frame_samples_zed_troubleshoot/4    : Frames from camera will be writte here (when debugging enabled from lane_recognition)
+    ├──  lane_recognition                    : Main perception package. Used to detect lines of lane and classify signs
+    ├──  legacy_code                         : Old team's code
+    ├──  line_follower                       : Control package containing the node with the routines for time trials and pursuit racing
+    ├──  micro_ros_setup                     : Needed dependancy (submodule)
+    ├──  mxcarkit_imu_message                : Package for custom messages coming from Nucleo
+    ├──  mxcarkit_uss_message                : Package for custom messages coming from Nucleo
+    ├──  mxcarkit_vehctrl_message            : Package for custom messages coming from Nucleo
+    ├──  nucleo_files                        : Contains latest script for Nucleo with ROS2 support
+    ├──  sign_detection/model_files          : Contains file for the best classifier
+    ├──  sllidar_ros2                        : Dependancy (submodule). Needed for LIDAR but not used
+    ├──  team_interfaces                     : Package for custom messages
+    ├──  traffic_control_system_detection    : Perception package for classifier and traffic sign detection
+    ├──  transport_drivers                   : Needed dependancy (submodule)
+    ├──  udp_msgs                            : Needed dependancy (submodule)
+    ├──  udp_msgs                            : Package for micro-ros
+    ├──  vehicle_control                     : Package containing bring up launch file, emergency stop node, and parallel parking out node
+    ├──  vesc                                : Needed dependancy (submodule)
+    ├──  vesc_firmware/config                : Contains config files for the Vesc
+    ├──  yolov8_ros                          : Needed dependancy (submodule)
+    ├──  Zed-ros2-interfaces                 : Needed dependancy (submodule)
+    ├──  Zed-ros2-wrapper                    : Needed dependancy (submodule)
+    ├──  zed_perception                      : Needed dependancy (submodule)
 
-All packages including drivers, submodules, and dependencies are available inside the src directory. Our main modules are the following ROS packages:
+    
+### Main Packages
 
-    ├── depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image
-    ├── lane_recognition    : Package to recognize lane lines based on image processing algorithms
-    ├── line_follower       : Speed and steering angle controller
-    ├── team_interfaces     : Custom messages definition for our autonomous racing and parking module
-    ├── vehicle_control     : Launch package  
-    ├── zed_perception      : Package to launch the ZED camera nodes, including config for the ZED object detection API
-    ├── sign_detection      : Package to detect specific signs based on a custom trained yolov8n model.
+    ├── lane_recognition                    : Main perception package.
+    ├── line_follower                       : Control package containing the node with the routines for time trials and pursuit racing
+    ├── vehicle_control                     : Package containing bring up launch file, emergency stop node, and parallel parking out node
+    ├── traffic_control_system_detection    : Perception package for classifier and traffic sign detection
+
     
 ### Docker development
 
