@@ -1,5 +1,10 @@
 # adc
-### Package Overview 
+
+### Directories Description
+    ├──  ackermann_msgs      : Needed dependancy (submodule)
+    ├──  depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image (not used and not tested)
+    ├──  depth_from_rgb      : 
+
 All packages including drivers, submodules, and dependencies are available inside the src directory. Our main modules are the following ROS packages:
 
     ├── depth_from_rgb      : Package that calculates distance matching between the RGB image with the depth image
