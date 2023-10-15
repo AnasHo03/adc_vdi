@@ -36,8 +36,10 @@
     ├── traffic_control_system_detection    : Perception package for classifier and traffic sign detection
 
     
-### Important Note!
-Note that currently the perception module lane_recognition must be run from outside of Docker as the used modules for the classifier only function on the main host machine (Jetson). It is highly recommended to either move all modules to Docker or to move all modules to local machine (Jetson). Due to time cosntraints we were not able to do this.
+### Important Notes!
+-Currently the perception module lane_recognition must be run from outside of Docker as the used modules for the classifier only function on the main host machine (Jetson). It is highly recommended to either move all modules to Docker or to move all modules to local machine (Jetson). Due to time cosntraints we were not able to do this.
+-Push the reset button on the car after launching the bring-up launch file or when starting the micro-ros node!!!!!!!!!! Failing to do so will result in the car thrusting at maximum speed in case you have line_follower running
+-The password for the system is mxck
 
 ### Initial Setup
 -SSH inside the Car: In VSCode: Ctrl + Shift + P --> Remote SSH: Connect to Host. Terminal --> New Terminal
@@ -55,6 +57,7 @@ Note that currently the perception module lane_recognition must be run from outs
     docker pull stephenadhi/ros2:humble-l4t-r35.2-zedsdk-4.0
     
 ### Bring Up and Operation
+0) Prop up the car so that the wheels are not touching either the ground or any cables 
 1) SSH inside the Car: In VSCode: Ctrl + Shift + P --> Remote SSH: Connect to Host. Terminal --> New Terminal
 
 2.1) Open a new terminal on local machine and navigate to src
@@ -80,10 +83,12 @@ Note that currently the perception module lane_recognition must be run from outs
 3.4.1) First terminal: bring-up launch file
 
     ros2 launch vehicle_control autonomous_control.launch.py 
-3.4.2) Second terminal: emergency shutdown node
+3.4.2) !!!!!!!!!! PUSH THE RESET BUTTON ON THE CAR !!!!!!!!!! Failing to do so will result in the car thrusting at maximum speed
+
+3.4.3) Second terminal: emergency shutdown node
 
     ros2 run vehicle_control emergency_stop_publisher.py 
-3.4.3) Third terminal: (x.x is min speed. y.y is max speed)
+3.4.4) Third terminal: (x.x is min speed. y.y is max speed)
     
     ros2 run line_follower line_follower 0.4 0.8
 
@@ -100,3 +105,4 @@ Johannes Schoch: Classifier
  ### TODO (Suggestions)
  This is a supplemental list to that found in the written report
 - Ask Mdynamix for missing screws
+- Figure out the problem with the car going at max throttle when the reset button is not pressed
