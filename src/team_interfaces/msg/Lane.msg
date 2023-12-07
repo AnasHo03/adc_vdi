@@ -1,4 +1,4 @@
-# Message for detected lane lines
+# Message for detected lane lines (currently dashed_line_detected is a placeholder)
 
 # Bool for detected lane
 bool right_lane_detected

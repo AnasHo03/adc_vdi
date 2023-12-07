@@ -24,7 +24,7 @@ import pyzed.sl as sl
 import sys
 
 ## Modes
-debug_mode = False # True to enable printing out images
+debug_mode = True # True to enable printing out images
 debug_modulo = 20
 use_classifier = False
 drag_mode = False
@@ -41,9 +41,9 @@ scale = 1
 ## BEV params
 top_roi = 0.4395 # 0.4395 # 0-1 (0 is top)
 bottom_roi = 0.6347 #0.6347 # 0-1 (0 is top)
-width_use = 1 # 0-1
-height_multiplier = 3.5
-skew_level = 0.887 # 0-1
+width_use = 1 # 0-1 (For cropping vertically. Not used)
+height_multiplier = 3.5 # How much to stretch vertically
+skew_level = 0.887 # 0-1 (1 is triangle, 0 is rectangle)
 
 ## filter params
 thresh = 120 #94 # 0-255 (lower means higher sensitivity) 
@@ -76,6 +76,7 @@ stop_angle_1 = math.radians(90-angle_sweep_1/2)
 ## process lane params
 lane_distance = int(74) #74
 center_offset_constant = 645
+
 
 roi_in = np.float32(np.floor([
 	((1-width_use)*width*scale,0), # Top-left corner
@@ -606,6 +607,8 @@ class LaneRecognition(Node):
 
         actual_left = False
         actual_right = False
+
+        # make sure left and right lanes are actually left and right lanes
         if left_defined and right_defined:
             center_offset = center_offset_constant - 0.5*(left[0][0]+right[0][0])
             left_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0]))

@@ -12,6 +12,7 @@ from team_interfaces.msg import Emergency
 from team_interfaces.msg import Signs
 from team_interfaces.msg import Trafficlight
 from mxcarkit_vehctrl_message.msg import VehCtrlCustomMessage
+from mxcarkit_uss_message.msg import USSCustomMessage
 
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
@@ -21,47 +22,47 @@ import sys
 
 
 # Parameters general
+# Normal lap: lane, rc
+# Drag: lane message
+# Overtaking: lane message, signs, uss
+# Parking: traffic light
 DRIVE_MODE = 0 # 0 = normal lap, 1 = drag racing, 2 = overtaking, 3 = park out cross
-BLIND_OVERTAKE = True
-SNAIL_MODE = False
-DELAY_IN_FRAMES = 70
+SNAIL_MODE = False # Not used. Princple is to slow our car in pursuit mode to 
+                   # provide a dissadvantage for the opnent. Develop if needed
+DELAY_IN_FRAMES = 70 # Count down till first Ackermann is sent
 
 # Parameters steering
 MAX_STEERING_ANGLE = 0.442  # [rad]
 MAX_STEERING_ANGLE_DRAG = 0.1
-KP_LO = 0.016/1.4 # Proportional gain constant
+KP_LO = 0.016/1.4 # Proportional gain constant (divided by 1.4 for no good reason, use float)
 KP_DRAG_RACING = 0.019 / 1.4   # drag racing KP
 KI = 0.0001    # Integral gain
 KI_DRAG_RACING = 0.0004 / 1.4 # drag racing KI
-INTEGRAL_CONTROLLER_FRAMES = 8 # frames
+INTEGRAL_CONTROLLER_FRAMES = 8 # frames to consider
 KD = 0.00050    # Derivative gain
 KD_DRAG_RACING  = 0.0050 / 1.4 # drag racing KD
-STEERING_BIAS = -0.021
-HEADING_ANGLE_MULTIPLIER = -3
-HEADING_ANGLE_MULTIPLIER_SQUARE = -5
+STEERING_BIAS = -0.021 # Correct hardware bias. (See if you can fix hardware)
+HEADING_ANGLE_MULTIPLIER = -3 # Adapt to high curvature (modeled by a poloynomial function)
+HEADING_ANGLE_MULTIPLIER_SQUARE = -5 # Adapt to high curvature (modeled by a poloynomial function)
 
 # Parameters speed
-MIN_THRUST = 0.5  #0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
-MAX_THRUST = 1.0 #1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
-MIN_THRUST = float(sys.argv[1])
-MAX_THRUST = float(sys.argv[2])
+# [m/second] (min. is 0.4 m/s)
+MIN_THRUST = 0.5  # 0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
+MAX_THRUST = 1.0 # 1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
+MIN_THRUST = float(sys.argv[1]) # Argument when launching
+MAX_THRUST = float(sys.argv[2]) # Argument when launching
 MAX_OVERTAKING_THRUST = 4.5
-CONSTANT_THRUST = float(0.6)  # [m/second] (min. is 0.4 m/s)
 CONSTANT_THRUST_DRAG = 1.7
-KP_THRUST = 1.0
-SIGMOID_SLOPE = 4
-SIGMOID_X_OFFSET = 1.04
+KP_THRUST = 1.0 # Proportional term of speed controller
+SIGMOID_SLOPE = 4 # Params for sigmoid shape. Those and min/max thrust define the curve (plot for visualization)
+SIGMOID_X_OFFSET = 1.04 
 SIGMOID_YMAX_OFFSET = 0.45
-USS_PUNISHMENT_MULTIPLIER = 0.0 #0.05
+USS_PUNISHMENT_MULTIPLIER = 0.05 # Proportional slow-down depending on USS signal
 
 # Parameters ultra-sonic sensors
 USS_MAX_DRAW_FRONT_LEFT = 20
 USS_MAX_DRAW_FRONT_MIDDLE = 20 
 USS_MAX_DRAW_FRONT_RIGHT = 20
-
-# Parameters signs
-THRESHOLD_SIGN_HEIGHT_MIN = 300
-THRESHOLD_SIGN_HEIGHT_MAX = 450
 
 # Parameters filtering
 NUM_ELEMENTS_TO_AVERAGE_OFFSET = 1
@@ -70,14 +71,16 @@ NUM_ELEMENTS_TO_CONSIDER_HEADING = 5 # must be smaller than NUM_ELEMENTS_TO_AVER
 NUM_ELEMENTS_TO_AVERAGE_THRUST = 5
 
 # Parameters overtaking
+THRESHOLD_SIGN_HEIGHT_MIN = 300
+THRESHOLD_SIGN_HEIGHT_MAX = 450
 OVERTAKING_LANE_LENGTH = 5.0
 if SNAIL_MODE:
     OVERTAKING_LANE_LENGTH = 10.0
 LEFT_OVERTAKE = False #True means left, false means right
-OVERTAKING_ALLOWED_FRAMES = 1
-OVERTAKING_ALLOWED_TIMEOUT = 4.0
-THRESHOLD_ALLOWED_HEADING = 0.08
-OPPONENT_SEEN_TIMEOUT = 3.0
+OVERTAKING_ALLOWED_FRAMES = 1   # Shift register size to confirm overtaking sign was seen
+OVERTAKING_ALLOWED_TIMEOUT = 4.0 # Last confirmation of overtaking sign
+THRESHOLD_ALLOWED_HEADING = 0.08 # Used to initiate the manevouver only if straight heading
+OPPONENT_SEEN_TIMEOUT = 3.0     # Last seen oponent
 
 class LineFollower(Node):
     def __init__(self):
@@ -118,6 +121,10 @@ class LineFollower(Node):
         self.time_since_overtaking_allowed = 0.0
         self.time_since_opponent_seen = 0.0
         
+        # USS
+        self.uss_array = []
+        self.average_uss = 0.0
+        
         # Manual driving variables
         self.remote_pwm = 0     # holds remote state
         self.steering_pwm = 0
@@ -138,7 +145,7 @@ class LineFollower(Node):
         # self.lane_sub_off_track = self.create_subscription(Lane, 'lane_topic', self.line_follow_off_track, 10)
         self.emergency_sub = self.create_subscription(Emergency, 'emergency', self.emergency_shutdown_callback, 2)
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
-        self.uss_sensors_sub = self.create_subscription(Int16MultiArray, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
+        self.uss_sensors_sub = self.create_subscription(USSCustomMessage, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
         self.veh_remote_sub = self.create_subscription(VehCtrlCustomMessage, 'veh_remote_ctrl', self.veh_remote_callback, qos_profile=qos_profile)    
 
         # Initialize publiher
@@ -165,7 +172,7 @@ class LineFollower(Node):
     def uss_callback(self, msg):
         considered_distances = [100, 100, 100]
 
-        self.uss_data_front = msg.data[7:10]
+        self.uss_data_front = msg.uss_range[7:10]
         if self.uss_data_front[0] <= USS_MAX_DRAW_FRONT_LEFT and self.uss_data_front[0] != -1 and self.uss_data_front[0] != -2:
             considered_distances[0] = self.uss_data_front[0]
         if self.uss_data_front [1] <= USS_MAX_DRAW_FRONT_MIDDLE and self.uss_data_front[1] != -1 and self.uss_data_front[1] != -2:
@@ -179,9 +186,9 @@ class LineFollower(Node):
             #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
 
             self.time_since_opponent_seen = time.time()
-        #self.get_logger().info('Min front distance:' + str(self.min_front_distance))
+        # self.get_logger().info('Min front distance:' + str(self.min_front_distance))
         # self.get_logger().info('Front left:' + str(self.uss_data_front[0]))
-        #self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
+        # self.get_logger().info('Front middle:' + str(self.uss_data_front[1]))
         # self.get_logger().info('Front right:' + str(self.uss_data_front[2]))
 
 
@@ -190,24 +197,29 @@ class LineFollower(Node):
         
         # make sure overtaking is really overtaking
         if msg.overtaking_allowed and msg.sign_detected == True:
+            # add 1 to shift register if sign detected
             self.overtaking_allowed_frames.append(1)
             #self.get_logger().info('Height is:' + str(msg.sign_height))
 
 
         else:
+            # shift register takes a 0 if no sign detected
             self.overtaking_allowed_frames.append(0)
         if len(self.overtaking_allowed_frames) > OVERTAKING_ALLOWED_FRAMES:
+            # delete oldest value if shift register is full
             self.overtaking_allowed_frames.pop(0)
 
-        # very confident that there's an overtaking sign now
+        # very confident that there's an overtaking sign now (shift register all ones)
         if sum(self.overtaking_allowed_frames) == OVERTAKING_ALLOWED_FRAMES:
-            # sign is close to car -> now car is in overtaking region
+            # check against height of sign: sign is close to car -> now car is in overtaking region
             if (msg.sign_height > THRESHOLD_SIGN_HEIGHT_MIN) and (msg.sign_height < THRESHOLD_SIGN_HEIGHT_MAX):
                 self.within_overtaking_region = True
                 self.time_since_overtaking_allowed = time.time()
-
+                
+        # make sure there is an oponent in front (based on USS signal)
         if (time.time() - self.time_since_opponent_seen) > OPPONENT_SEEN_TIMEOUT: 
             self.within_overtaking_region = False
+        # time passed since sign detected
         if (time.time() - self.time_since_overtaking_allowed) > OVERTAKING_ALLOWED_TIMEOUT:
             self.within_overtaking_region = False
 
@@ -276,6 +288,7 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         hardcode_thrust = 2.5
         t = 0.0
+        # Iterate through time and speed till sure the length of the track will be covered
         while True:
             delta_speed = (current_thrust*(hardcode_thrust - 1))
             t = 1 / (delta_speed + 0.1)
@@ -286,12 +299,14 @@ class LineFollower(Node):
         ack_msg.steering_angle = 0.0 + STEERING_BIAS
         ack_msg.speed = hardcode_thrust * current_thrust 
 
+        # Not using (develop further or remove)
         if SNAIL_MODE:
             ack_msg.speed = 3.0
             t = 2.0
         if ack_msg.speed > MAX_OVERTAKING_THRUST:
             ack_msg.speed = MAX_OVERTAKING_THRUST
 
+        # Publish speed calculated previously until current_time = calculated_time
         t0 = time.time()
         while (time.time() - t0) < t:
             self.ackermann_pub.publish(ack_msg)
@@ -390,14 +405,18 @@ class LineFollower(Node):
                     self.previous_heading = self.heading_angle
 
                 # Publish Ackermann message after delay
+                
                 if self.start_ctr > DELAY_IN_FRAMES and not SNAIL_MODE:
                     self.send_ackermann(steering_angle, self.thrust)
+
+                # Snail mode (not used)
+                # We"re not using SNAIL_MODE (clean code or further develop)
                 elif self.start_ctr > DELAY_IN_FRAMES and SNAIL_MODE:
                     self.send_ackermann(steering_angle, 0.6)
                     if np.random.rand(1,1) < 0.03:
                         self.send_ackermann(steering_angle, 0.0)
                         time.sleep(1.0)
-                # Countdown
+                # Countdown and informs if in drag mode
                 elif (DELAY_IN_FRAMES - self.start_ctr) % 13 == 0:
                     if DRIVE_MODE == 1:
                         self.get_logger().info("DRAG RACE MODE!")
@@ -406,8 +425,8 @@ class LineFollower(Node):
                 self.start_ctr += 1
                 if self.start_ctr == DELAY_IN_FRAMES:
                     self.emergency_stop = True 
-            elif DRIVE_MODE == 3:
 
+            elif DRIVE_MODE == 3:
                 # Publish Ackermann message after delay
                 if self.start_ctr > DELAY_IN_FRAMES:
                     # Hardcoded stuff
@@ -421,6 +440,7 @@ class LineFollower(Node):
                 self.start_ctr += 1
                 if self.start_ctr == DELAY_IN_FRAMES:
                     self.emergency_stop = True 
+
         elif self.emergency_stop == True:
             manual_steer = float(0)
             manual_thrust = float(0)
