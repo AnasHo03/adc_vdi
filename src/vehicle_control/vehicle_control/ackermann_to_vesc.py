@@ -40,6 +40,8 @@ class AckermannToVesc(Node):
       # True sensorless commutation is possible only with motor speeds of 500-1000 rpm and up.
       if abs(speed) > self.speed_clip:
         erpm = self.speed_to_erpm_gain * speed
+      elif speed ==0.0:
+         erpm = 0.0
       else:
         erpm = np.sign(speed) * self.speed_to_erpm_gain * self.speed_clip
 
@@ -96,6 +98,7 @@ def main(args=None):
     rclpy.init(args=args)
 
     node = AckermannToVesc()
+    print('ACKERMANN')
 
     try:
         rclpy.spin(node)

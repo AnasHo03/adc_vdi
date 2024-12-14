@@ -13,6 +13,8 @@ from team_interfaces.msg import Signs
 from team_interfaces.msg import Trafficlight
 from mxcarkit_vehctrl_message.msg import VehCtrlCustomMessage
 from mxcarkit_uss_message.msg import USSCustomMessage
+from vesc_msgs.msg import VescState, VescStateStamped
+
 
 # Python dependancies
 import numpy as np # Import the NumPy scientific computing library
@@ -47,8 +49,8 @@ HEADING_ANGLE_MULTIPLIER_SQUARE = -5 # Adapt to high curvature (modeled by a pol
 
 # Parameters speed
 # [m/second] (min. is 0.4 m/s)
-MIN_THRUST = 0.5  # 0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
-MAX_THRUST = 1.0 # 1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
+MIN_THRUST = 0.4  # 0.7  # Pursuit: 0.75 #Timed trial: 0.7 / 0.5 / 0.9 / Competition: 1.0
+MAX_THRUST = 0.5 # 1.4  # Pursuit: 1.2  #Timed trial: 1.4 / 1.0 / 1.4 / Competition : 1.6
 MIN_THRUST = float(sys.argv[1]) # Argument when launching
 MAX_THRUST = float(sys.argv[2]) # Argument when launching
 MAX_OVERTAKING_THRUST = 4.5
@@ -92,7 +94,9 @@ class LineFollower(Node):
         self.thrust_array = []
 
         # Logic variables
+        print('HALLO')
         self.emergency_stop = False
+        self.neutral = False
         self.destroyed = False
         self.off_track_mode = False
 
@@ -120,7 +124,11 @@ class LineFollower(Node):
 
         self.time_since_overtaking_allowed = 0.0
         self.time_since_opponent_seen = 0.0
-        
+        self.race_step =0
+        self.race_step_counter_0 =0
+        self.initial_displacement =0.0
+        self. difference_displcament =0.0
+        self.gear_ratio = 2.679
         # USS
         self.uss_array = []
         self.average_uss = 0.0
@@ -147,14 +155,29 @@ class LineFollower(Node):
         self.detected_signs_sub = self.create_subscription(Signs, 'detected_signs', self.detected_signs_callback, 2)
         self.uss_sensors_sub = self.create_subscription(USSCustomMessage, 'uss_sensors', self.uss_callback, qos_profile=qos_profile)    
         self.veh_remote_sub = self.create_subscription(VehCtrlCustomMessage, 'veh_remote_ctrl', self.veh_remote_callback, qos_profile=qos_profile)    
+        self.sensor_core_sub = self.create_subscription(VescStateStamped, 'sensors/core', self.displacement_callback, qos_profile =qos_profile)
 
         # Initialize publiher
         self.ackermann_pub = self.create_publisher(AckermannDrive, '/ackermann_cmd', 2)
         
         # Register shutdown callback (function triggered at ctr+c) 
         signal.signal(signal.SIGINT, self.shutdown_callback)
-
-
+    def displacement_callback(self,msg):
+        self.displacement = msg.state.displacement
+        # print(self.displacement)
+        self.dispacement()
+    def reset_displacement(self):
+        self.initial_displacement = None
+        self.difference_displcament = 0
+        print("Reset")
+    def dispacement(self):
+        if self.initial_displacement is None:
+            self.initial_displacement = self.displacement
+        else :
+            self.current_displacement = self.displacement
+            self.difference_displcament = (self.current_displacement - self.initial_displacement)*self.gear_ratio
+        # print("difference_displcament : " + str(self.difference_displcament))
+      
     def veh_remote_callback(self, msg):
         self.remote_pwm = msg.steering_pwm
         self.steering_pwm = msg.remote_pwm
@@ -164,7 +187,9 @@ class LineFollower(Node):
             self.emergency_stop = True
         elif (self.remote_pwm > 990 and self.remote_pwm < 1010):
             self.emergency_stop = False
-        # print(str(self.emergency_stop))
+        else:
+            self.emergency_stop = True
+        print(str(self.emergency_stop))
         # print (str(self.remote_pwm))
         # print (str(self.steering_pwm))
         # print (str(self.throttle_pwm))
@@ -440,21 +465,56 @@ class LineFollower(Node):
                 self.start_ctr += 1
                 if self.start_ctr == DELAY_IN_FRAMES:
                     self.emergency_stop = True 
+            elif DRIVE_MODE == 4 :   ###################################### Test the method 
+                # Filter signal
+                self.center_offset = self.filter_signal_offset(self.center_offset)
+                self.average_thrust = self.filter_signal_thrust(self.thrust)
+                self.current_heading = self.heading_angle
+                self.heading_angle = self.filter_signal_heading(self.heading_angle)
+                
 
-        elif self.emergency_stop == True:
+                # Flexible offset point depending on heading angle to bank sharper on curves
+                self.center_offset = self.center_offset + HEADING_ANGLE_MULTIPLIER * self.heading_angle + HEADING_ANGLE_MULTIPLIER_SQUARE * self.heading_angle * abs(self.heading_angle)
+
+                # Calculate steering angle with PID 
+                steering_angle = self.pid_controller(self.center_offset, self.previous_center_offset)
+
+                # Calculate thrust
+                self.thrust = self.speed_controller(self.heading_angle)
+
+                # Update previous offset and heading if offset is NaN
+                if not math.isnan(self.center_offset):
+                    self.previous_center_offset = self.center_offset
+                if not math.isnan(self.heading_angle):
+                    self.previous_heading = self.heading_angle
+                if self.race_step == 0 :
+                    if self.race_step_counter_0 == 0 :
+                        self.race_step_counter_0 = 1 
+                        self.reset_displacement()
+                    if abs(self.difference_displcament) <= 2000 :
+                        self.send_ackermann(0.0,0.0)
+
+
+        elif self.emergency_stop == True and self.neutral == False :
             manual_steer = float(0)
             manual_thrust = float(0)
             # self.get_logger().info(str(self.remote_pwm))
             # self.get_logger().info(str(self.throttle_pwm))
             if self.steering_pwm > 1510 or self.steering_pwm < 1490:
                 manual_steer = float(self.steering_pwm - 1500)*0.442/600.0
-            if self.throttle_pwm > 1502 or self.throttle_pwm < 1498:
-                manual_thrust = float((self.throttle_pwm - 1500)*2/600.0)
+            else :
+                manual_steer = 0.0
+            if self.throttle_pwm > 1260 or self.throttle_pwm < 1240:
+                manual_thrust = float((self.throttle_pwm - 1250)*1.0/600.0)
+            else : 
+                manual_thrust = 0.0
             # print(str(manual_steer))
             # print(str(manual_thrust))c
             # manual_thrust = float(2.5)
             self.send_ackermann(manual_steer,manual_thrust)
-
+        else :
+            self.send_ackermann_halt()
+            
     def pid_controller(self, center_offset, previous_center_offset):
         # Desired offset is zero
         current_error = 0 - center_offset
@@ -549,7 +609,7 @@ class LineFollower(Node):
             return (heading)
 
     def sigmoid_controller(self, angle):
-	    return MIN_THRUST + (MAX_THRUST + SIGMOID_YMAX_OFFSET - MIN_THRUST)/(1 + math.exp(-SIGMOID_SLOPE*(angle - SIGMOID_X_OFFSET)))
+        return MIN_THRUST + (MAX_THRUST + SIGMOID_YMAX_OFFSET - MIN_THRUST)/(1 + math.exp(-SIGMOID_SLOPE*(angle - SIGMOID_X_OFFSET)))
 
     def send_ackermann(self, steering_angle, thrust):
         if DRIVE_MODE == 1: # constant thrust for drag racing
@@ -557,13 +617,13 @@ class LineFollower(Node):
         ack_msg = AckermannDrive()
         ack_msg.steering_angle = steering_angle + STEERING_BIAS
         ack_msg.steering_angle_velocity = 0.0
-        ack_msg.speed = thrust #CONSTANT_THRUST 
+        ack_msg.speed = thrust #CONSTANT_THRUST # wegen umgekehrtes Vesc Anschluss eine minus hinter 
         ack_msg.acceleration = 0.0
         ack_msg.jerk = 0.0
         self.ackermann_pub.publish(ack_msg)
 
     def send_ackermann_halt(self):
-        ack_msg = AckermannDrive()
+        ack_msg = AckermannDrive() 
         ack_msg.steering_angle = 0.0
         ack_msg.speed = 0.0
         self.ackermann_pub.publish(ack_msg)

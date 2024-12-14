@@ -13,6 +13,31 @@ import os
 from ultralytics import YOLO
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge # For converting ROS image message to jpg
+from std_msgs.msg import Bool
+
+# Python dependancies
+import cv2 # Import the OpenCV library to enable computer vision
+import numpy as np # Import the NumPy scientific computing library
+from numpy.linalg import norm
+import math
+import pyzed.sl as sl
+import sys
+
+#!/usr/bin/env python3
+
+from platform import node
+import rclpy
+import signal
+from rclpy.node import Node
+from std_msgs.msg import UInt8, UInt16MultiArray
+from sensor_msgs.msg import Image as ROS_Image
+from team_interfaces.msg import Lane
+from team_interfaces.msg import Signs
+from team_interfaces.msg import Trafficlight
+import os
+from ultralytics import YOLO
+from ament_index_python.packages import get_package_share_directory
+from cv_bridge import CvBridge # For converting ROS image message to jpg
 
 
 # Python dependancies
@@ -24,11 +49,11 @@ import pyzed.sl as sl
 import sys
 
 ## Modes
-debug_mode = True # True to enable printing out images
+debug_mode = False # True to enable printing out images
 debug_modulo = 20
-use_classifier = False
+use_classifier = True
 drag_mode = False
-use_traffic_light_detection = False
+use_traffic_light_detection = True
 
 ############ Classifier ##############
 CLASSES = ['cross_parking','overtaking_allowed','overtaking_forbidden','parallel_parking','pit_in','pit_out']
@@ -39,11 +64,11 @@ height = 720
 scale = 1
 
 ## BEV params
-top_roi = 0.4395 # 0.4395 # 0-1 (0 is top)
-bottom_roi = 0.6347 #0.6347 # 0-1 (0 is top)
+top_roi = 0.6100 # 0.4395 # 0-1 (0 is top)
+bottom_roi = top_roi + 0.1952 #0.6347 # 0-1 (0 is top)
 width_use = 1 # 0-1 (For cropping vertically. Not used)
 height_multiplier = 3.5 # How much to stretch vertically
-skew_level = 0.887 # 0-1 (1 is triangle, 0 is rectangle)
+skew_level = 0.82 #0.887 # 0-1 (1 is triangle, 0 is rectangle)
 
 ## filter params
 thresh = 120 #94 # 0-255 (lower means higher sensitivity) 
@@ -58,15 +83,15 @@ if adaptive_block_size % 2 == 0:
 ## line detect params
 search_step = int(3) #2 # px
 search_offset = int(8)
-left_search_dist = int(94 + search_offset)
-right_search_dist = int(94 + search_offset)
+left_search_dist = int(130 + search_offset)
+right_search_dist = int(130 + search_offset)
 start_search_height = int(488) #488
 height_step = int(8) #8
 radius = 20 # px
 angle_sweep_0 = 200 # deg
 angle_sweep_1 = 140 # deg
 sweep_step = math.radians(6)
-max_points = 6
+max_points = 8
 
 start_angle_0 = math.radians(90+angle_sweep_0/2)
 stop_angle_0 = math.radians(90-angle_sweep_0/2)
@@ -95,15 +120,16 @@ bird_transform_matrix = cv2.getPerspectiveTransform(roi_in,roi_out)
 
 # Create a ZED camera object
 zed = sl.Camera()
-
+print('Hallo')
 # Set configuration parameters
 init_params = sl.InitParameters()
 init_params.camera_resolution = sl.RESOLUTION.HD720 # Use HD1080 video mode
-init_params.camera_fps = 20 # Set fps at 30
+init_params.camera_fps = 30 # Set fps at 30
 #init_params.camera_auto_exposure_gain = True
 
 # Open the camera
 err = zed.open(init_params)
+print(err)
 if (err != sl.ERROR_CODE.SUCCESS) :
     print('Zed exited script!')
     exit(-1)
@@ -113,6 +139,8 @@ if (err != sl.ERROR_CODE.SUCCESS) :
 class LaneRecognition(Node):
     def __init__(self):
         super().__init__('lane_recognition_node')
+
+        print('the lane recognition node is running')
 
         if use_classifier == True:
             model_path = get_package_share_directory('traffic_control_system_detection')+'/model_files/new_models/best_refitted.pt'
@@ -263,18 +291,18 @@ class LaneRecognition(Node):
         # Image stream writer
         if debug_mode:
             img_out = self.label_offsets(img_out, center_offset, heading_angle)
-            raw = './frame_samples_zed_troubleshoot/4/img_' + str(self.img_saving_counter_1/debug_modulo) + '.jpeg'
-            pp = './frame_samples_zed_troubleshoot/4/pp_' + str(self.img_saving_counter_2/debug_modulo) + '.jpeg'
+            #raw = './frame_samples_zed_troubleshoot/4/img_' + str(self.img_saving_counter_1/debug_modulo) + '.jpeg'
+            #pp = './frame_samples_zed_troubleshoot/4/pp_' + str(self.img_saving_counter_2/debug_modulo) + '.jpeg'
             if self.img_saving_counter_1 % debug_modulo == 0:
                 # cv2.imwrite(raw, self.image_ocv)
                 # cv2.imwrite(pp, img_out)
-                
-                cv2.imwrite('./frame_samples_zed_troubleshoot/4/raw.jpeg', self.image_ocv)
-                cv2.imwrite('./frame_samples_zed_troubleshoot/4/pp.jpeg', img_out)
-            self.img_saving_counter_1 += 1
-            self.img_saving_counter_2 += 1
-            # cv2.imwrite('./frame_samples_zed_troubleshoot/4/bird.jpeg', img_bird)
-            # cv2.imwrite('./frame_samples_zed_troubleshoot/4/filtered.jpeg', img_filtered)
+                #cv2.imwrite('./src/frame_samples_zed_troubleshoot/4/filtered.jpeg', img_filtered)
+
+                cv2.imwrite('./src/frame_samples_zed_troubleshoot/4/raw.jpeg', self.image_ocv)
+                cv2.imwrite('./src/frame_samples_zed_troubleshoot/4/pp.jpeg', img_out)
+            #self.img_saving_counter_1 += 1
+            #self.img_saving_counter_2 += 1
+            #cv2.imwrite('./src/frame_samples_zed_troubleshoot/4/bird.jpeg', img_bird)
         
 
         # Print relevant info
@@ -315,13 +343,13 @@ class LaneRecognition(Node):
             lower = np.array([50, 50, 200])         # bgr
             upper = np.array([255, 255, 255])       # bgr
             # hsv color range
-            lower_1 = np.array([0, 150, 200])
-            upper_1 = np.array([15, 255, 255])    # 30 155 255
-            lower_2 = np.array([165, 150, 200])   # 160 50 200
+            lower_1 = np.array([0, 150, 200])      # 0 150 200
+            upper_1 = np.array([15, 255, 255])    # 15 255 255
+            lower_2 = np.array([165, 150, 200])   # 165 150 200
             upper_2 = np.array([180, 255, 255])   # 180 155 255
             # constants
             color_label = 'RED'
-            thresh = 90
+            thresh = 90 #90
             # create masks
             mask_rgb = cv2.inRange(cv_img, lower, upper)        # rgb mask
             mask1 = cv2.inRange(hsv, lower_1, upper_1)
@@ -332,8 +360,8 @@ class LaneRecognition(Node):
             lower = np.array([100, 200, 100])       # bgr
             upper = np.array([255, 255, 255])       # bgr
             # hsv color range
-            lower_1 = np.array([40, 150, 200])      # 40,50,150
-            upper_1 = np.array([90, 255, 255])    # 0,255,255
+            lower_1 = np.array([40, 150, 200])      # 40,150,200
+            upper_1 = np.array([90, 255, 255])    # 90,255,255
             # constants
             color_label = 'GREEN'
             thresh = 30
@@ -409,6 +437,7 @@ class LaneRecognition(Node):
 
     ## lane to array of points (x,y)
     def detect_lane(self, img_in):
+        cv2.imwrite('./src/frame_samples_zed_troubleshoot/4/img_in.jpeg', img_in)
         max_x = img_in.shape[1]
         max_y = img_in.shape[0]
         blank = np.zeros((max_y,max_x,3), np.uint8)
@@ -610,7 +639,7 @@ class LaneRecognition(Node):
 
         # make sure left and right lanes are actually left and right lanes
         if left_defined and right_defined:
-            center_offset = center_offset_constant - 0.5*(left[0][0]+right[0][0])
+            center_offset = center_offset_constant - 0.5*(left[0][0]+right[0][0])##
             left_angle = math.atan2((left[-1][1] - left[0][1]),(left[-1][0] - left[0][0]))
             right_angle = math.atan2((right[-1][1] - right[0][1]),(right[-1][0] - right[0][0]))
             angle_is_legit = np.sign(left_angle) == np.sign(right_angle)

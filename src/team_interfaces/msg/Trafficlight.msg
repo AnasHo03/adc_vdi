@@ -1,1 +1,2 @@
 bool traffic_light
+bool use_traffic

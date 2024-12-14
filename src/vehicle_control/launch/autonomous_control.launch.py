@@ -61,10 +61,10 @@ def generate_launch_description():
     )
 
     # Line follower
-    line_follower_node = Node(
+    follower = Node(
         package='line_follower',
-        executable='line_follower',
-        name='line_follower',
+        executable='follower',
+        name='follower',
         output='screen',
     )
 
@@ -83,6 +83,6 @@ def generate_launch_description():
         # twist_to_ackermann_node,
         ackermann_to_vesc_node,
         #lane_recognition_node,
-        #line_follower_node
+        #follower
     ])
 

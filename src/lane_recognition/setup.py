@@ -1,4 +1,6 @@
 from setuptools import setup
+import os
+from glob import glob
 
 package_name = 'lane_recognition'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', 'lane_recognition' ,'launch'),glob(os.path.join('launch','*launch.[pxy][yma]*'))),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -21,6 +24,10 @@ setup(
     entry_points={
         'console_scripts': [
             'lane_recognition = lane_recognition.lane_recognition:main',
+            'new_lane_recognition=lane_recognition.new_lane_recognition:main',
+            'image_pub=lane_recognition.image_pub:main',
+            'check=lane_recognition.check:main',
+            'dashed=lane_recognition.dashed:main'
         ],
     },
 )
